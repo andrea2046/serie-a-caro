@@ -105,7 +105,7 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 const BIN_ID = "69d681f3856a6821891087c0"
 const API_KEY = "$2a$10$x.dSFPS14HXK3N5haPJtm.NxD/i2mFa0.60RKp92TL6nihvWQc06a"
 const BIN_URL = "https://api.jsonbin.io/v3/b/" + BIN_ID
-const PASSWORD = "admin"
+const PASSWORD_HASH = "5d28a834728f3baeb111d317aa4606f5bb82c0ce762b534ec91c23c0ed54031a"
 
 let admin = false
 let editMatch = null
@@ -132,6 +132,11 @@ function generateMatches() {
         out.push({ id: id++, group: g, a: teams[i], b: teams[j], g1: null, g2: null, mvp: "", played: false, scorersA: [], scorersB: [] })
   })
   return out
+}
+
+async function hashPassword(pwd) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pwd))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("")
 }
 
 function compressImage(file) {
@@ -198,16 +203,21 @@ async function binSave() {
 }
 
 function openLogin() { loginPopup.style.display = "flex" }
-function doLogin() {
-  if (pass.value === PASSWORD) {
+
+async function doLogin() {
+  const hash = await hashPassword(pass.value)
+  if (hash === PASSWORD_HASH) {
     admin = true
     loginPopup.style.display = "none"
     logoutBtn.style.display = "inline-block"
     loginBtn.style.display = "none"
     pass.value = ""
     renderMatches()
-  } else { alert("Password errata") }
+  } else {
+    alert("Password errata")
+  }
 }
+
 function logout() {
   admin = false
   logoutBtn.style.display = "none"
