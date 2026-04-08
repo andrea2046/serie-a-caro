@@ -33,7 +33,15 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 .mvp{font-size:12px;color:#22c55e;padding:6px 12px}
 .playerRow{display:flex;align-items:center;gap:8px;padding:6px 10px}
 .playerImg{width:26px;height:26px;border-radius:50%;object-fit:cover;border:1px solid #1e293b}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16a34a;color:white;padding:10px 20px;border-radius:8px;font-weight:600;z-index:200;display:none}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-weight:600;z-index:200;display:none;white-space:nowrap}
+.toast.ok{background:#16a34a}
+.toast.err{background:#dc2626}
+.sync-bar{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:11px;color:#94a3b8;background:#0f172a;border-bottom:1px solid #1e293b}
+.dot{width:7px;height:7px;border-radius:50%;background:#94a3b8;flex-shrink:0}
+.dot.ok{background:#22c55e}
+.dot.err{background:#ef4444}
+.dot.loading{background:#f59e0b;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 </style>
 </head>
 <body>
@@ -46,6 +54,11 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
   </div>
 </header>
 
+<div class="sync-bar">
+  <div class="dot loading" id="syncDot"></div>
+  <span id="syncLabel">Connessione...</span>
+</div>
+
 <div class="menu">
   <select onchange="changePage(this.value)">
     <option value="classifica">Classifica</option>
@@ -54,9 +67,9 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
   </select>
 </div>
 
-<div id="classifica" class="container active"></div>
-<div id="risultati" class="container"></div>
-<div id="marcatori" class="container"></div>
+<div id="classifica" class="container active"><div style="padding:20px;color:#94a3b8;text-align:center">Caricamento...</div></div>
+<div id="risultati" class="container"><div style="padding:20px;color:#94a3b8;text-align:center">Caricamento...</div></div>
+<div id="marcatori" class="container"><div style="padding:20px;color:#94a3b8;text-align:center">Caricamento...</div></div>
 <div id="matchView" class="container"></div>
 
 <div class="popup" id="loginPopup">
@@ -78,16 +91,16 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
     <div id="scorersB"></div>
     <label style="font-size:12px;color:#94a3b8">MVP</label>
     <input id="mvp">
-    <button onclick="saveMatch()" style="margin-top:10px;width:100%">Salva</button>
+    <button onclick="saveMatch()" style="margin-top:10px;width:100%">💾 Salva</button>
     <button onclick="matchPop.style.display='none'" style="margin-top:6px;width:100%;background:#334155">Annulla</button>
   </div>
 </div>
 
-<div class="toast" id="toast">Salvato!</div>
+<div class="toast" id="toast"></div>
 
 <script>
 const PASSWORD = "admin"
-const STORAGE_KEY = "serieACaro_v2"
+const STORAGE_KEY = "serieACaro-data"
 
 let admin = false
 let editMatch = null
@@ -101,64 +114,79 @@ const groupsDef = {
   D: ["🇧🇷 5CC","🇵🇹 5AC","🇪🇬 3CC","🇪🇨 5DOI"]
 }
 
-/* Genera tutti i match di default */
-function generateMatches() {
-  let matches = []
-  let id = 0
-  Object.entries(groupsDef).forEach(([g, teams]) => {
-    for (let i = 0; i < teams.length; i++)
-      for (let j = i + 1; j < teams.length; j++) {
-        matches.push({
-          id: id++,
-          group: g,
-          a: teams[i],
-          b: teams[j],
-          g1: null,
-          g2: null,
-          mvp: "",
-          played: false,
-          scorersA: [],
-          scorersB: []
-        })
-      }
-  })
-  return matches
-}
-
-/* STATE */
 let matches = []
 let playerImages = {}
 let scorers = {}
 let mvpCount = {}
 
-/* ─── STORAGE ─── */
-function saveData() {
+function generateMatches() {
+  let out = [], id = 0
+  Object.entries(groupsDef).forEach(([g, teams]) => {
+    for (let i = 0; i < teams.length; i++)
+      for (let j = i+1; j < teams.length; j++)
+        out.push({ id: id++, group: g, a: teams[i], b: teams[j], g1: null, g2: null, mvp: "", played: false, scorersA: [], scorersB: [] })
+  })
+  return out
+}
+
+/* ─── SYNC BAR ─── */
+function setSyncStatus(state, label) {
+  document.getElementById("syncDot").className = "dot " + state
+  document.getElementById("syncLabel").textContent = label
+}
+
+/* ─── CLOUD STORAGE ─── */
+async function cloudLoad() {
+  setSyncStatus("loading", "Caricamento dati...")
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ matches, playerImages }))
+    const res = await window.storage.get(STORAGE_KEY, true)
+    if (res && res.value) {
+      const data = JSON.parse(res.value)
+      matches = data.matches && data.matches.length ? data.matches : generateMatches()
+      playerImages = data.playerImages || {}
+      setSyncStatus("ok", "Dati sincronizzati")
+    } else {
+      matches = generateMatches()
+      playerImages = {}
+      setSyncStatus("ok", "Nessun dato salvato — partita nuova")
+    }
   } catch(e) {
-    console.warn("localStorage pieno o non disponibile", e)
+    setSyncStatus("err", "Offline — dati locali")
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const data = JSON.parse(raw)
+        matches = data.matches || generateMatches()
+        playerImages = data.playerImages || {}
+      } else {
+        matches = generateMatches()
+        playerImages = {}
+      }
+    } catch(_) {
+      matches = generateMatches()
+      playerImages = {}
+    }
   }
 }
 
-function loadData() {
+async function cloudSave() {
+  setSyncStatus("loading", "Salvataggio...")
+  const payload = JSON.stringify({ matches, playerImages })
+  try { localStorage.setItem(STORAGE_KEY, payload) } catch(_) {}
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return false
-    const data = JSON.parse(raw)
-    if (data.matches && data.matches.length > 0) {
-      matches = data.matches
-      playerImages = data.playerImages || {}
-      return true
-    }
+    await window.storage.set(STORAGE_KEY, payload, true)
+    const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
+    setSyncStatus("ok", "Salvato alle " + ora)
+    return true
   } catch(e) {
-    console.warn("Errore caricamento dati", e)
+    setSyncStatus("err", "Errore — salvato solo in locale")
+    showToast("Salvato solo localmente!", "err")
+    return false
   }
-  return false
 }
 
 /* ─── AUTH ─── */
 function openLogin() { loginPopup.style.display = "flex" }
-
 function doLogin() {
   if (pass.value === PASSWORD) {
     admin = true
@@ -167,11 +195,8 @@ function doLogin() {
     loginBtn.style.display = "none"
     pass.value = ""
     renderMatches()
-  } else {
-    alert("Password errata")
-  }
+  } else { alert("Password errata") }
 }
-
 function logout() {
   admin = false
   logoutBtn.style.display = "none"
@@ -182,42 +207,27 @@ function logout() {
 /* ─── CLASSIFICA ─── */
 function renderTable() {
   let table = {}
-  Object.values(groupsDef).flat().forEach(t => {
-    table[t] = { pt: 0, gf: 0, gs: 0, dr: 0 }
-  })
-
+  Object.values(groupsDef).flat().forEach(t => { table[t] = {pt:0,gf:0,gs:0,dr:0} })
   matches.forEach(m => {
     if (!m.played) return
-    table[m.a].gf += m.g1
-    table[m.a].gs += m.g2
-    table[m.b].gf += m.g2
-    table[m.b].gs += m.g1
+    table[m.a].gf += m.g1; table[m.a].gs += m.g2
+    table[m.b].gf += m.g2; table[m.b].gs += m.g1
     if (m.g1 > m.g2) table[m.a].pt += 3
     else if (m.g2 > m.g1) table[m.b].pt += 3
     else { table[m.a].pt++; table[m.b].pt++ }
   })
-
   Object.keys(table).forEach(t => { table[t].dr = table[t].gf - table[t].gs })
-
   let html = ""
   Object.entries(groupsDef).forEach(([g, teams]) => {
-    let sorted = [...teams].sort((a, b) => {
+    let sorted = [...teams].sort((a,b) => {
       if (table[b].pt !== table[a].pt) return table[b].pt - table[a].pt
       if (table[b].dr !== table[a].dr) return table[b].dr - table[a].dr
       return table[b].gf - table[a].gf
     })
-
-    html += `<div class="card"><b>Girone ${g}</b>
-      <table>
-        <tr><th>#</th><th>Squadra</th><th>PT</th><th>DR</th><th>GF</th><th>GS</th></tr>
-        ${sorted.map((t, i) => `
-          <tr class="${i < 2 ? 'qual' : ''}">
-            <td>${i + 1}</td><td>${t}</td>
-            <td>${table[t].pt}</td><td>${table[t].dr}</td>
-            <td>${table[t].gf}</td><td>${table[t].gs}</td>
-          </tr>`).join("")}
-      </table>
-    </div>`
+    html += `<div class="card"><b>Girone ${g}</b><table>
+      <tr><th>#</th><th>Squadra</th><th>PT</th><th>DR</th><th>GF</th><th>GS</th></tr>
+      ${sorted.map((t,i) => `<tr class="${i<2?'qual':''}"><td>${i+1}</td><td>${t}</td><td>${table[t].pt}</td><td>${table[t].dr}</td><td>${table[t].gf}</td><td>${table[t].gs}</td></tr>`).join("")}
+    </table></div>`
   })
   classifica.innerHTML = html
 }
@@ -229,13 +239,9 @@ function renderMatches() {
     let m = matches.filter(x => x.group === g)
     html += `<div class="card"><b>Girone ${g}</b>`
     m.forEach(x => {
-      html += `
-        <div class="match ${admin ? 'admin' : ''}" onclick="openMatch(${x.id})">
-          <span>${x.a}</span>
-          <span>${x.played ? x.g1 + "-" + x.g2 : "-"}</span>
-          <span>${x.b}</span>
-        </div>
-        ${x.mvp ? `<div class="mvp">⭐ MVP: ${x.mvp}</div>` : ""}`
+      html += `<div class="match ${admin?'admin':''}" onclick="openMatch(${x.id})">
+        <span>${x.a}</span><span>${x.played ? x.g1+"-"+x.g2 : "-"}</span><span>${x.b}</span>
+      </div>${x.mvp ? `<div class="mvp">⭐ MVP: ${x.mvp}</div>` : ""}`
     })
     html += "</div>"
   })
@@ -248,54 +254,41 @@ function openMatch(id) {
   else openMatchView(m)
 }
 
-/* ─── VISTA PARTITA (utente) ─── */
 function openMatchView(m) {
   changePage("matchView")
-  let html = `
-    <button class="back" onclick="changePage('risultati')">← Torna</button>
-    <div class="card">
-      <b>${m.a} vs ${m.b}</b>
-      <div style="font-size:32px;padding:16px;text-align:center">
-        ${m.played ? m.g1 + " - " + m.g2 : "Non giocata"}
-      </div>
+  let html = `<button class="back" onclick="changePage('risultati')">← Torna</button>
+    <div class="card"><b>${m.a} vs ${m.b}</b>
+      <div style="font-size:32px;padding:16px;text-align:center">${m.played ? m.g1+" - "+m.g2 : "Non giocata"}</div>
     </div>`
-
-  ;[["A", m.scorersA, m.a], ["B", m.scorersB, m.b]].forEach(([side, list, name]) => {
+  ;[["A", m.scorersA, m.a],["B", m.scorersB, m.b]].forEach(([, list, name]) => {
     html += `<div class="card"><b>Marcatori ${name}</b>
       ${list.length
-        ? list.map(s => `
-          <div class="playerRow">
+        ? list.map(s => `<div class="playerRow">
             ${playerImages[s.name] ? `<img src="${playerImages[s.name]}" class="playerImg">` : ""}
-            <div>${s.name} ⚽ ${s.goals}</div>
-          </div>`).join("")
+            <div>${s.name} ⚽ ${s.goals}</div></div>`).join("")
         : "<div style='padding:10px;color:#94a3b8'>Nessuno</div>"}
     </div>`
   })
-
   matchView.innerHTML = html
 }
 
-/* ─── ADMIN PARTITA ─── */
+/* ─── ADMIN MATCH ─── */
 function openMatchAdmin(m) {
   editMatch = m.id
   matchPop.style.display = "flex"
   popTitle.innerText = m.a + " vs " + m.b
-  g1.value = m.g1 ?? ""
-  g2.value = m.g2 ?? ""
-  mvp.value = m.mvp ?? ""
+  g1.value = m.g1 ?? ""; g2.value = m.g2 ?? ""; mvp.value = m.mvp ?? ""
   tempScorersA = [...(m.scorersA || [])]
   tempScorersB = [...(m.scorersB || [])]
   scorersA.innerHTML = buildScorersUI("A")
   scorersB.innerHTML = buildScorersUI("B")
-  renderTemp("A")
-  renderTemp("B")
+  renderTemp("A"); renderTemp("B")
 }
 
 function buildScorersUI(side) {
   let opts = ""
   for (let i = 1; i <= 10; i++) opts += `<option value="${i}">${i}</option>`
-  return `
-    <div style="margin-top:10px;font-size:12px;color:#94a3b8">Marcatori ${side}</div>
+  return `<div style="margin-top:10px;font-size:12px;color:#94a3b8">Marcatori ${side}</div>
     <div id="list${side}"></div>
     <input id="name${side}" placeholder="Nome giocatore">
     <select id="goal${side}" style="margin:4px 0">${opts}</select>
@@ -303,58 +296,52 @@ function buildScorersUI(side) {
 }
 
 function addScorer(side) {
-  let name = document.getElementById("name" + side).value.trim()
-  let goals = parseInt(document.getElementById("goal" + side).value)
+  let name = document.getElementById("name"+side).value.trim()
+  let goals = parseInt(document.getElementById("goal"+side).value)
   if (!name) return
   let arr = side === "A" ? tempScorersA : tempScorersB
-  let existing = arr.find(s => s.name.toLowerCase() === name.toLowerCase())
-  if (existing) existing.goals += goals
+  let ex = arr.find(s => s.name.toLowerCase() === name.toLowerCase())
+  if (ex) ex.goals += goals
   else arr.push({ name, goals })
-  document.getElementById("name" + side).value = ""
-  renderTemp("A")
-  renderTemp("B")
+  document.getElementById("name"+side).value = ""
+  renderTemp("A"); renderTemp("B")
 }
 
 function removeScorer(side, idx) {
   if (side === "A") tempScorersA.splice(idx, 1)
   else tempScorersB.splice(idx, 1)
-  renderTemp("A")
-  renderTemp("B")
+  renderTemp("A"); renderTemp("B")
 }
 
 function renderTemp(side) {
   let arr = side === "A" ? tempScorersA : tempScorersB
-  let html = arr.map((s, i) => `
+  document.getElementById("list"+side).innerHTML = arr.map((s,i) => `
     <div class="playerRow" style="justify-content:space-between">
       <div style="display:flex;align-items:center;gap:8px">
         ${playerImages[s.name] ? `<img src="${playerImages[s.name]}" class="playerImg">` : ""}
         <div style="font-size:13px">${s.name} ⚽ ${s.goals}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <label style="font-size:11px;color:#94a3b8;cursor:pointer">
-          📷 <input type="file" accept="image/*" style="display:none;width:auto;padding:0;border:none" onchange="uploadPhoto(event,'${s.name}')">
+        <label style="font-size:11px;color:#94a3b8;cursor:pointer">📷
+          <input type="file" accept="image/*" style="display:none;width:auto;padding:0;border:none" onchange="uploadPhoto(event,'${s.name}')">
         </label>
         <button onclick="removeScorer('${side}',${i})" style="background:#991b1b;padding:2px 8px;font-size:12px">✕</button>
       </div>
     </div>`).join("")
-  document.getElementById("list" + side).innerHTML = html
 }
 
 function uploadPhoto(e, name) {
   const file = e.target.files[0]
   if (!file) return
   const reader = new FileReader()
-  reader.onload = function(ev) {
+  reader.onload = ev => {
     playerImages[name] = ev.target.result
-    renderTemp("A")
-    renderTemp("B")
-    renderScorers()
-    saveData()
+    renderTemp("A"); renderTemp("B"); renderScorers()
   }
   reader.readAsDataURL(file)
 }
 
-function saveMatch() {
+async function saveMatch() {
   let m = matches.find(x => x.id === editMatch)
   m.g1 = parseInt(g1.value) || 0
   m.g2 = parseInt(g2.value) || 0
@@ -362,21 +349,16 @@ function saveMatch() {
   m.played = true
   m.scorersA = [...tempScorersA]
   m.scorersB = [...tempScorersB]
-
   rebuildScorers()
   matchPop.style.display = "none"
-  renderMatches()
-  renderTable()
-  renderScorers()
-  saveData()
-  showToast("Salvato!")
+  renderMatches(); renderTable(); renderScorers()
+  const ok = await cloudSave()
+  if (ok) showToast("✅ Salvato!")
 }
 
 /* ─── MARCATORI ─── */
 function rebuildScorers() {
-  scorers = {}
-  mvpCount = {}
-
+  scorers = {}; mvpCount = {}
   matches.forEach(match => {
     if (!match.played) return
     ;[...match.scorersA, ...match.scorersB].forEach(s => {
@@ -392,26 +374,18 @@ function rebuildScorers() {
 }
 
 function renderScorers() {
-  let sorted = Object.values(scorers).sort((a, b) => b.goals - a.goals)
+  let sorted = Object.values(scorers).sort((a,b) => b.goals - a.goals)
   let html = `<div class="card"><b>Classifica Marcatori</b></div>`
-
-  if (sorted.length === 0) {
+  if (!sorted.length)
     html += `<div class="card"><div style="padding:12px;color:#94a3b8">Nessun gol ancora segnato.</div></div>`
-  }
-
-  sorted.forEach((s, i) => {
-    let medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i + 1) + "."
+  sorted.forEach((s,i) => {
+    let medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)+"."
     let mvps = mvpCount[s.name.toLowerCase()] || 0
-    html += `
-      <div class="card">
-        <div class="playerRow">
-          ${playerImages[s.name] ? `<img src="${playerImages[s.name]}" class="playerImg">` : ""}
-          <div>
-            ${medal} ${s.name}<br>
-            <span style="font-size:12px;color:#94a3b8">⚽ ${s.goals} gol &nbsp; ⭐ ${mvps} MVP</span>
-          </div>
-        </div>
-      </div>`
+    html += `<div class="card"><div class="playerRow">
+      ${playerImages[s.name] ? `<img src="${playerImages[s.name]}" class="playerImg">` : ""}
+      <div>${medal} ${s.name}<br>
+        <span style="font-size:12px;color:#94a3b8">⚽ ${s.goals} gol &nbsp; ⭐ ${mvps} MVP</span>
+      </div></div></div>`
   })
   marcatori.innerHTML = html
 }
@@ -421,22 +395,22 @@ function changePage(p) {
   document.querySelectorAll(".container").forEach(c => c.classList.remove("active"))
   document.getElementById(p).classList.add("active")
 }
-
-function showToast(msg) {
-  toast.innerText = msg
+function showToast(msg, type="ok") {
+  toast.textContent = msg
+  toast.className = "toast " + type
   toast.style.display = "block"
-  setTimeout(() => toast.style.display = "none", 2000)
+  setTimeout(() => toast.style.display = "none", 2500)
 }
 
 /* ─── INIT ─── */
-const loaded = loadData()
-if (!loaded) {
-  matches = generateMatches()
+async function init() {
+  await cloudLoad()
+  rebuildScorers()
+  renderMatches()
+  renderTable()
+  renderScorers()
 }
-rebuildScorers()
-renderMatches()
-renderTable()
-renderScorers()
+init()
 </script>
 </body>
 </html>
