@@ -102,7 +102,7 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 <div class="toast" id="toast"></div>
 
 <script>
-const FIREBASE_URL = "https://serie-a-caro-default-rtdb.europe-west1.firebasedatabase.app"
+const FB = "https://serie-a-caro-default-rtdb.europe-west1.firebasedatabase.app"
 const PASSWORD = "admin"
 
 let admin = false
@@ -132,17 +132,14 @@ function generateMatches() {
   return out
 }
 
-/* ─── COMPRIMI FOTO: ridotta a 60x60px, qualità 50% → ~3-5KB ─── */
 function compressImage(file) {
   return new Promise((resolve) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
       const canvas = document.createElement("canvas")
-      canvas.width = 60
-      canvas.height = 60
+      canvas.width = 60; canvas.height = 60
       const ctx = canvas.getContext("2d")
-      /* ritaglia al centro */
       const size = Math.min(img.width, img.height)
       const x = (img.width - size) / 2
       const y = (img.height - size) / 2
@@ -154,66 +151,105 @@ function compressImage(file) {
   })
 }
 
-/* ─── SYNC BAR ─── */
 function setSyncStatus(state, label) {
   document.getElementById("syncDot").className = "dot " + state
   document.getElementById("syncLabel").textContent = label
 }
 
-/* ─── FIREBASE ─── */
-async function fbFetch(path, opts={}) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 10000)
+/* ─── FIREBASE HELPERS ─── */
+async function fbGet(path) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 8000)
   try {
-    const res = await fetch(FIREBASE_URL + path + ".json", { ...opts, signal: controller.signal })
-    clearTimeout(timer)
+    const res = await fetch(FB + path + ".json", { signal: ctrl.signal })
+    clearTimeout(t)
     if (!res.ok) throw new Error("HTTP " + res.status)
     return await res.json()
-  } catch(e) {
-    clearTimeout(timer)
-    throw e
-  }
+  } catch(e) { clearTimeout(t); throw e }
 }
 
+async function fbPut(path, data) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 8000)
+  try {
+    const res = await fetch(FB + path + ".json", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      signal: ctrl.signal
+    })
+    clearTimeout(t)
+    if (!res.ok) throw new Error("HTTP " + res.status)
+    return true
+  } catch(e) { clearTimeout(t); return false }
+}
+
+async function fbDelete(path) {
+  try {
+    await fetch(FB + path + ".json", { method: "DELETE" })
+  } catch(e) {}
+}
+
+/* ─── LOAD: legge nuovo path, migra vecchio se serve, cancella vecchio ─── */
 async function firebaseLoad() {
   setSyncStatus("loading", "Caricamento...")
   try {
-    /* carica matches e foto separatamente */
-    const [mData, pData] = await Promise.all([
-      fbFetch("/matches"),
-      fbFetch("/photos")
+    /* leggi entrambi i nodi in parallelo */
+    const [newData, oldData] = await Promise.all([
+      fbGet("/matches"),
+      fbGet("/serieacaro/matches")
     ])
-    matches = (mData && Array.isArray(mData) && mData.length) ? mData : generateMatches()
-    playerImages = pData || {}
-    setSyncStatus("ok", "Sincronizzato ✓")
+
+    /* scegli i dati più aggiornati: preferisci quelli con più partite giocate */
+    let newPlayed = 0, oldPlayed = 0
+    if (Array.isArray(newData)) newPlayed = newData.filter(m => m.played).length
+    if (Array.isArray(oldData)) oldPlayed = oldData.filter(m => m.played).length
+
+    if (oldPlayed > newPlayed && Array.isArray(oldData) && oldData.length) {
+      /* migra i vecchi dati nel nuovo path e cancella il vecchio */
+      matches = oldData
+      await fbPut("/matches", matches)
+      await fbDelete("/serieacaro")
+      setSyncStatus("ok", "Migrazione completata ✓")
+    } else if (Array.isArray(newData) && newData.length) {
+      matches = newData
+      /* cancella il vecchio nodo se esiste ancora */
+      if (oldData) await fbDelete("/serieacaro")
+      setSyncStatus("ok", "Sincronizzato ✓")
+    } else {
+      matches = generateMatches()
+      setSyncStatus("ok", "Primo avvio ✓")
+    }
+
+    /* carica foto */
+    try {
+      const photos = await fbGet("/photos")
+      playerImages = photos || {}
+    } catch(_) { playerImages = {} }
+
   } catch(e) {
     setSyncStatus("err", e.name === "AbortError" ? "Timeout — riprova ↺" : "Errore connessione")
     matches = generateMatches()
     playerImages = {}
-    showToast("Impossibile connettersi", "err")
+    showToast("Errore connessione", "err")
   }
 }
 
-async function firebaseSaveMatches() {
-  try {
-    await fbFetch("/matches", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(matches)
-    })
-    return true
-  } catch(e) { return false }
+async function firebaseSave() {
+  setSyncStatus("loading", "Salvataggio...")
+  const ok = await fbPut("/matches", matches)
+  if (ok) {
+    const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
+    setSyncStatus("ok", "Salvato alle " + ora + " ✓")
+  } else {
+    setSyncStatus("err", "Errore salvataggio")
+  }
+  return ok
 }
 
 async function firebaseSavePhoto(name, dataUrl) {
-  try {
-    await fbFetch("/photos/" + encodeURIComponent(name.replace(/\s/g,"_")), {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dataUrl)
-    })
-    return true
-  } catch(e) { return false }
+  const key = name.replace(/\s/g, "_")
+  await fbPut("/photos/" + key, dataUrl)
 }
 
 /* ─── AUTH ─── */
@@ -373,9 +409,8 @@ async function uploadPhoto(e, name) {
   const compressed = await compressImage(file)
   playerImages[name] = compressed
   renderTemp("A"); renderTemp("B"); renderScorers()
-  const ok = await firebaseSavePhoto(name, compressed)
-  if (ok) showToast("📷 Foto salvata!", "ok")
-  else showToast("Errore salvataggio foto", "err")
+  await firebaseSavePhoto(name, compressed)
+  showToast("📷 Foto salvata!", "ok")
 }
 
 async function saveMatch() {
@@ -389,16 +424,9 @@ async function saveMatch() {
   rebuildScorers()
   matchPop.style.display = "none"
   renderMatches(); renderTable(); renderScorers()
-  setSyncStatus("loading", "Salvataggio...")
-  const ok = await firebaseSaveMatches()
-  if (ok) {
-    const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
-    setSyncStatus("ok", "Salvato alle " + ora + " ✓")
-    showToast("✅ Salvato!")
-  } else {
-    setSyncStatus("err", "Errore salvataggio")
-    showToast("Errore salvataggio!", "err")
-  }
+  const ok = await firebaseSave()
+  if (ok) showToast("✅ Salvato!")
+  else showToast("Errore salvataggio!", "err")
 }
 
 /* ─── MARCATORI ─── */
