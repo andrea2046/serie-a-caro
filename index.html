@@ -102,7 +102,9 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 <div class="toast" id="toast"></div>
 
 <script>
-const FB = "https://serie-a-caro-default-rtdb.europe-west1.firebasedatabase.app"
+const BIN_ID = "69d681f3856a6821891087c0"
+const API_KEY = "$2a$10$x.dSFPS14HXK3N5haPJtm.NxD/i2mFa0.60RKp92TL6nihvWQc06a"
+const BIN_URL = "https://api.jsonbin.io/v3/b/" + BIN_ID
 const PASSWORD = "admin"
 
 let admin = false
@@ -132,14 +134,6 @@ function generateMatches() {
   return out
 }
 
-/* converte quello che arriva da Firebase in array ordinato per id */
-function toArray(data) {
-  if (!data) return null
-  if (Array.isArray(data)) return data.filter(Boolean)
-  /* è un oggetto con chiavi numeriche */
-  return Object.values(data).sort((a, b) => a.id - b.id)
-}
-
 function compressImage(file) {
   return new Promise((resolve) => {
     const img = new Image()
@@ -162,76 +156,45 @@ function setSyncStatus(state, label) {
   document.getElementById("syncLabel").textContent = label
 }
 
-async function fbRequest(path, opts = {}) {
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), 8000)
-  try {
-    const res = await fetch(FB + path + ".json", { ...opts, signal: ctrl.signal })
-    clearTimeout(t)
-    if (!res.ok) throw new Error("HTTP " + res.status)
-    return { ok: true, data: await res.json() }
-  } catch(e) {
-    clearTimeout(t)
-    return { ok: false, error: e.name === "AbortError" ? "timeout" : e.message }
-  }
-}
-
-async function firebaseLoad() {
+async function binLoad() {
   setSyncStatus("loading", "Caricamento...")
-
-  const result = await fbRequest("/matches")
-
-  if (!result.ok) {
-    setSyncStatus("err", "Errore — " + result.error)
+  try {
+    const res = await fetch(BIN_URL + "/latest", {
+      headers: { "X-Master-Key": API_KEY }
+    })
+    if (!res.ok) throw new Error("HTTP " + res.status)
+    const json = await res.json()
+    const data = json.record
+    matches = (data.matches && data.matches.length) ? data.matches : generateMatches()
+    playerImages = data.playerImages || {}
+    setSyncStatus("ok", "Sincronizzato ✓")
+  } catch(e) {
+    setSyncStatus("err", "Errore connessione")
+    showToast("Errore connessione", "err")
     matches = generateMatches()
     playerImages = {}
-    showToast("Errore connessione Firebase", "err")
-    return
   }
-
-  /* converte oggetto o array in array pulito */
-  const arr = toArray(result.data)
-  matches = (arr && arr.length) ? arr : generateMatches()
-
-  /* se i dati erano in formato oggetto, risalvali come array pulito */
-  if (result.data && !Array.isArray(result.data)) {
-    await fbRequest("/matches", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(matches)
-    })
-  }
-
-  const photos = await fbRequest("/photos")
-  playerImages = (photos.ok && photos.data) ? photos.data : {}
-
-  setSyncStatus("ok", "Sincronizzato ✓")
 }
 
-async function firebaseSave() {
+async function binSave() {
   setSyncStatus("loading", "Salvataggio...")
-  const result = await fbRequest("/matches", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(matches)
-  })
-  if (result.ok) {
+  try {
+    const res = await fetch(BIN_URL, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": API_KEY
+      },
+      body: JSON.stringify({ matches, playerImages })
+    })
+    if (!res.ok) throw new Error("HTTP " + res.status)
     const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
     setSyncStatus("ok", "Salvato alle " + ora + " ✓")
     return true
-  } else {
+  } catch(e) {
     setSyncStatus("err", "Errore salvataggio")
     return false
   }
-}
-
-async function firebaseSavePhoto(name, dataUrl) {
-  const key = name.replace(/\s/g, "_")
-  await fbRequest("/photos/" + key, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(dataUrl)
-  })
 }
 
 function openLogin() { loginPopup.style.display = "flex" }
@@ -387,7 +350,7 @@ async function uploadPhoto(e, name) {
   const compressed = await compressImage(file)
   playerImages[name] = compressed
   renderTemp("A"); renderTemp("B"); renderScorers()
-  await firebaseSavePhoto(name, compressed)
+  await binSave()
   showToast("📷 Foto salvata!", "ok")
 }
 
@@ -402,7 +365,7 @@ async function saveMatch() {
   rebuildScorers()
   matchPop.style.display = "none"
   renderMatches(); renderTable(); renderScorers()
-  const ok = await firebaseSave()
+  const ok = await binSave()
   if (ok) showToast("✅ Salvato!")
   else showToast("Errore salvataggio!", "err")
 }
@@ -453,7 +416,7 @@ function showToast(msg, type="ok") {
 }
 
 async function init() {
-  await firebaseLoad()
+  await binLoad()
   rebuildScorers()
   renderMatches()
   renderTable()
