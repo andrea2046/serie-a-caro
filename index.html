@@ -36,7 +36,7 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-weight:600;z-index:200;display:none;white-space:nowrap}
 .toast.ok{background:#16a34a}
 .toast.err{background:#dc2626}
-.sync-bar{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:11px;color:#94a3b8;background:#0f172a;border-bottom:1px solid #1e293b}
+.sync-bar{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 12px;font-size:11px;color:#94a3b8;background:#0f172a;border-bottom:1px solid #1e293b}
 .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .dot.ok{background:#22c55e}
 .dot.err{background:#ef4444}
@@ -55,8 +55,11 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 </header>
 
 <div class="sync-bar">
-  <div class="dot loading" id="syncDot"></div>
-  <span id="syncLabel">Connessione a Firebase...</span>
+  <div style="display:flex;align-items:center;gap:6px">
+    <div class="dot loading" id="syncDot"></div>
+    <span id="syncLabel">Connessione...</span>
+  </div>
+  <button onclick="init()" style="font-size:10px;padding:3px 8px;background:#334155">↺ Ricarica</button>
 </div>
 
 <div class="menu">
@@ -68,8 +71,8 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 </div>
 
 <div id="classifica" class="container active"><div style="padding:20px;color:#94a3b8;text-align:center">Caricamento...</div></div>
-<div id="risultati" class="container"><div style="padding:20px;color:#94a3b8;text-align:center">Caricamento...</div></div>
-<div id="marcatori" class="container"><div style="padding:20px;color:#94a3b8;text-align:center">Caricamento...</div></div>
+<div id="risultati" class="container"></div>
+<div id="marcatori" class="container"></div>
 <div id="matchView" class="container"></div>
 
 <div class="popup" id="loginPopup">
@@ -100,7 +103,6 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 
 <script>
 const FIREBASE_URL = "https://serie-a-caro-default-rtdb.europe-west1.firebasedatabase.app"
-const DB_PATH = "/serieacaro.json"
 const PASSWORD = "admin"
 
 let admin = false
@@ -130,55 +132,88 @@ function generateMatches() {
   return out
 }
 
+/* ─── COMPRIMI FOTO: ridotta a 60x60px, qualità 50% → ~3-5KB ─── */
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = 60
+      canvas.height = 60
+      const ctx = canvas.getContext("2d")
+      /* ritaglia al centro */
+      const size = Math.min(img.width, img.height)
+      const x = (img.width - size) / 2
+      const y = (img.height - size) / 2
+      ctx.drawImage(img, x, y, size, size, 0, 0, 60, 60)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL("image/jpeg", 0.5))
+    }
+    img.src = url
+  })
+}
+
 /* ─── SYNC BAR ─── */
 function setSyncStatus(state, label) {
   document.getElementById("syncDot").className = "dot " + state
   document.getElementById("syncLabel").textContent = label
 }
 
-/* ─── FIREBASE REST API ─── */
-async function firebaseLoad() {
-  setSyncStatus("loading", "Caricamento dati...")
+/* ─── FIREBASE ─── */
+async function fbFetch(path, opts={}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 10000)
   try {
-    const res = await fetch(FIREBASE_URL + DB_PATH)
+    const res = await fetch(FIREBASE_URL + path + ".json", { ...opts, signal: controller.signal })
+    clearTimeout(timer)
     if (!res.ok) throw new Error("HTTP " + res.status)
-    const data = await res.json()
-    if (data && data.matches && data.matches.length) {
-      matches = data.matches
-      playerImages = data.playerImages || {}
-      setSyncStatus("ok", "Dati sincronizzati ✓")
-    } else {
-      matches = generateMatches()
-      playerImages = {}
-      setSyncStatus("ok", "Primo avvio — dati inizializzati")
-    }
-    return true
+    return await res.json()
   } catch(e) {
-    setSyncStatus("err", "Errore connessione Firebase")
-    showToast("Impossibile connettersi al database", "err")
-    matches = generateMatches()
-    playerImages = {}
-    return false
+    clearTimeout(timer)
+    throw e
   }
 }
 
-async function firebaseSave() {
-  setSyncStatus("loading", "Salvataggio...")
+async function firebaseLoad() {
+  setSyncStatus("loading", "Caricamento...")
   try {
-    const res = await fetch(FIREBASE_URL + DB_PATH, {
+    /* carica matches e foto separatamente */
+    const [mData, pData] = await Promise.all([
+      fbFetch("/matches"),
+      fbFetch("/photos")
+    ])
+    matches = (mData && Array.isArray(mData) && mData.length) ? mData : generateMatches()
+    playerImages = pData || {}
+    setSyncStatus("ok", "Sincronizzato ✓")
+  } catch(e) {
+    setSyncStatus("err", e.name === "AbortError" ? "Timeout — riprova ↺" : "Errore connessione")
+    matches = generateMatches()
+    playerImages = {}
+    showToast("Impossibile connettersi", "err")
+  }
+}
+
+async function firebaseSaveMatches() {
+  try {
+    await fbFetch("/matches", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matches, playerImages })
+      body: JSON.stringify(matches)
     })
-    if (!res.ok) throw new Error("HTTP " + res.status)
-    const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
-    setSyncStatus("ok", "Salvato alle " + ora + " ✓")
     return true
-  } catch(e) {
-    setSyncStatus("err", "Errore salvataggio")
-    showToast("Errore salvataggio su Firebase!", "err")
-    return false
-  }
+  } catch(e) { return false }
+}
+
+async function firebaseSavePhoto(name, dataUrl) {
+  try {
+    await fbFetch("/photos/" + encodeURIComponent(name.replace(/\s/g,"_")), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dataUrl)
+    })
+    return true
+  } catch(e) { return false }
 }
 
 /* ─── AUTH ─── */
@@ -331,15 +366,16 @@ function renderTemp(side) {
     </div>`).join("")
 }
 
-function uploadPhoto(e, name) {
+async function uploadPhoto(e, name) {
   const file = e.target.files[0]
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = ev => {
-    playerImages[name] = ev.target.result
-    renderTemp("A"); renderTemp("B"); renderScorers()
-  }
-  reader.readAsDataURL(file)
+  showToast("Compressione foto...", "ok")
+  const compressed = await compressImage(file)
+  playerImages[name] = compressed
+  renderTemp("A"); renderTemp("B"); renderScorers()
+  const ok = await firebaseSavePhoto(name, compressed)
+  if (ok) showToast("📷 Foto salvata!", "ok")
+  else showToast("Errore salvataggio foto", "err")
 }
 
 async function saveMatch() {
@@ -353,8 +389,16 @@ async function saveMatch() {
   rebuildScorers()
   matchPop.style.display = "none"
   renderMatches(); renderTable(); renderScorers()
-  const ok = await firebaseSave()
-  if (ok) showToast("✅ Salvato!")
+  setSyncStatus("loading", "Salvataggio...")
+  const ok = await firebaseSaveMatches()
+  if (ok) {
+    const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
+    setSyncStatus("ok", "Salvato alle " + ora + " ✓")
+    showToast("✅ Salvato!")
+  } else {
+    setSyncStatus("err", "Errore salvataggio")
+    showToast("Errore salvataggio!", "err")
+  }
 }
 
 /* ─── MARCATORI ─── */
