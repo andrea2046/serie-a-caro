@@ -277,6 +277,22 @@ scorersB:[]
 }
 })
 
+/* LOCAL STORAGE */
+function saveData(){
+localStorage.setItem("serieACaro",JSON.stringify({
+matches,
+playerImages
+}))
+}
+
+function loadData(){
+const data=JSON.parse(localStorage.getItem("serieACaro"))
+if(!data) return
+
+matches=data.matches || matches
+playerImages=data.playerImages || {}
+}
+
 function openLogin(){ loginPopup.style.display="flex" }
 
 function doLogin(){
@@ -462,6 +478,7 @@ const reader=new FileReader()
 reader.onload=function(ev){
 playerImages[name]=ev.target.result
 renderScorers()
+saveData()
 }
 reader.readAsDataURL(file)
 }
@@ -485,6 +502,8 @@ matchPop.style.display="none"
 renderMatches()
 renderTable()
 renderScorers()
+
+saveData()
 }
 
 function rebuildScorers(){
@@ -626,6 +645,8 @@ document.querySelectorAll(".container").forEach(c=>c.classList.remove("active"))
 document.getElementById(p).classList.add("active")
 }
 
+loadData()
+rebuildScorers()
 renderMatches()
 renderTable()
 renderScorers()
