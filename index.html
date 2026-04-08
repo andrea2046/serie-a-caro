@@ -141,9 +141,7 @@ function compressImage(file) {
       canvas.width = 60; canvas.height = 60
       const ctx = canvas.getContext("2d")
       const size = Math.min(img.width, img.height)
-      const x = (img.width - size) / 2
-      const y = (img.height - size) / 2
-      ctx.drawImage(img, x, y, size, size, 0, 0, 60, 60)
+      ctx.drawImage(img, (img.width-size)/2, (img.height-size)/2, size, size, 0, 0, 60, 60)
       URL.revokeObjectURL(url)
       resolve(canvas.toDataURL("image/jpeg", 0.5))
     }
@@ -156,100 +154,67 @@ function setSyncStatus(state, label) {
   document.getElementById("syncLabel").textContent = label
 }
 
-/* ─── FIREBASE HELPERS ─── */
-async function fbGet(path) {
+/* ─── FIREBASE: singola fetch con timeout ─── */
+async function fbRequest(path, opts = {}) {
   const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), 8000)
+  const t = setTimeout(() => ctrl.abort(), 6000)
   try {
-    const res = await fetch(FB + path + ".json", { signal: ctrl.signal })
+    const res = await fetch(FB + path + ".json", { ...opts, signal: ctrl.signal })
     clearTimeout(t)
     if (!res.ok) throw new Error("HTTP " + res.status)
-    return await res.json()
-  } catch(e) { clearTimeout(t); throw e }
-}
-
-async function fbPut(path, data) {
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), 8000)
-  try {
-    const res = await fetch(FB + path + ".json", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-      signal: ctrl.signal
-    })
+    return { ok: true, data: await res.json() }
+  } catch(e) {
     clearTimeout(t)
-    if (!res.ok) throw new Error("HTTP " + res.status)
-    return true
-  } catch(e) { clearTimeout(t); return false }
+    return { ok: false, error: e.name === "AbortError" ? "timeout" : e.message }
+  }
 }
 
-async function fbDelete(path) {
-  try {
-    await fetch(FB + path + ".json", { method: "DELETE" })
-  } catch(e) {}
-}
-
-/* ─── LOAD: legge nuovo path, migra vecchio se serve, cancella vecchio ─── */
 async function firebaseLoad() {
   setSyncStatus("loading", "Caricamento...")
-  try {
-    /* leggi entrambi i nodi in parallelo */
-    const [newData, oldData] = await Promise.all([
-      fbGet("/matches"),
-      fbGet("/serieacaro/matches")
-    ])
 
-    /* scegli i dati più aggiornati: preferisci quelli con più partite giocate */
-    let newPlayed = 0, oldPlayed = 0
-    if (Array.isArray(newData)) newPlayed = newData.filter(m => m.played).length
-    if (Array.isArray(oldData)) oldPlayed = oldData.filter(m => m.played).length
+  const result = await fbRequest("/matches")
 
-    if (oldPlayed > newPlayed && Array.isArray(oldData) && oldData.length) {
-      /* migra i vecchi dati nel nuovo path e cancella il vecchio */
-      matches = oldData
-      await fbPut("/matches", matches)
-      await fbDelete("/serieacaro")
-      setSyncStatus("ok", "Migrazione completata ✓")
-    } else if (Array.isArray(newData) && newData.length) {
-      matches = newData
-      /* cancella il vecchio nodo se esiste ancora */
-      if (oldData) await fbDelete("/serieacaro")
-      setSyncStatus("ok", "Sincronizzato ✓")
-    } else {
-      matches = generateMatches()
-      setSyncStatus("ok", "Primo avvio ✓")
-    }
-
-    /* carica foto */
-    try {
-      const photos = await fbGet("/photos")
-      playerImages = photos || {}
-    } catch(_) { playerImages = {} }
-
-  } catch(e) {
-    setSyncStatus("err", e.name === "AbortError" ? "Timeout — riprova ↺" : "Errore connessione")
+  if (!result.ok) {
+    setSyncStatus("err", "Errore — " + result.error)
     matches = generateMatches()
     playerImages = {}
-    showToast("Errore connessione", "err")
+    showToast("Errore connessione Firebase", "err")
+    return
   }
+
+  matches = (Array.isArray(result.data) && result.data.length) ? result.data : generateMatches()
+
+  /* carica foto — se fallisce non blocca */
+  const photos = await fbRequest("/photos")
+  playerImages = (photos.ok && photos.data) ? photos.data : {}
+
+  setSyncStatus("ok", "Sincronizzato ✓")
 }
 
 async function firebaseSave() {
   setSyncStatus("loading", "Salvataggio...")
-  const ok = await fbPut("/matches", matches)
-  if (ok) {
+  const result = await fbRequest("/matches", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(matches)
+  })
+  if (result.ok) {
     const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
     setSyncStatus("ok", "Salvato alle " + ora + " ✓")
+    return true
   } else {
     setSyncStatus("err", "Errore salvataggio")
+    return false
   }
-  return ok
 }
 
 async function firebaseSavePhoto(name, dataUrl) {
   const key = name.replace(/\s/g, "_")
-  await fbPut("/photos/" + key, dataUrl)
+  await fbRequest("/photos/" + key, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dataUrl)
+  })
 }
 
 /* ─── AUTH ─── */
