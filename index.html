@@ -37,7 +37,7 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 .toast.ok{background:#16a34a}
 .toast.err{background:#dc2626}
 .sync-bar{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:11px;color:#94a3b8;background:#0f172a;border-bottom:1px solid #1e293b}
-.dot{width:7px;height:7px;border-radius:50%;background:#94a3b8;flex-shrink:0}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .dot.ok{background:#22c55e}
 .dot.err{background:#ef4444}
 .dot.loading{background:#f59e0b;animation:pulse 1s infinite}
@@ -56,7 +56,7 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 
 <div class="sync-bar">
   <div class="dot loading" id="syncDot"></div>
-  <span id="syncLabel">Connessione...</span>
+  <span id="syncLabel">Connessione a Firebase...</span>
 </div>
 
 <div class="menu">
@@ -99,8 +99,9 @@ input,textarea{width:100%;padding:8px;margin:4px 0;background:#020617;border:1px
 <div class="toast" id="toast"></div>
 
 <script>
+const FIREBASE_URL = "https://serie-a-caro-default-rtdb.europe-west1.firebasedatabase.app"
+const DB_PATH = "/serieacaro.json"
 const PASSWORD = "admin"
-const STORAGE_KEY = "serieACaro-data"
 
 let admin = false
 let editMatch = null
@@ -135,52 +136,47 @@ function setSyncStatus(state, label) {
   document.getElementById("syncLabel").textContent = label
 }
 
-/* ─── CLOUD STORAGE ─── */
-async function cloudLoad() {
+/* ─── FIREBASE REST API ─── */
+async function firebaseLoad() {
   setSyncStatus("loading", "Caricamento dati...")
   try {
-    const res = await window.storage.get(STORAGE_KEY, true)
-    if (res && res.value) {
-      const data = JSON.parse(res.value)
-      matches = data.matches && data.matches.length ? data.matches : generateMatches()
+    const res = await fetch(FIREBASE_URL + DB_PATH)
+    if (!res.ok) throw new Error("HTTP " + res.status)
+    const data = await res.json()
+    if (data && data.matches && data.matches.length) {
+      matches = data.matches
       playerImages = data.playerImages || {}
-      setSyncStatus("ok", "Dati sincronizzati")
+      setSyncStatus("ok", "Dati sincronizzati ✓")
     } else {
       matches = generateMatches()
       playerImages = {}
-      setSyncStatus("ok", "Nessun dato salvato — partita nuova")
+      setSyncStatus("ok", "Primo avvio — dati inizializzati")
     }
+    return true
   } catch(e) {
-    setSyncStatus("err", "Offline — dati locali")
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const data = JSON.parse(raw)
-        matches = data.matches || generateMatches()
-        playerImages = data.playerImages || {}
-      } else {
-        matches = generateMatches()
-        playerImages = {}
-      }
-    } catch(_) {
-      matches = generateMatches()
-      playerImages = {}
-    }
+    setSyncStatus("err", "Errore connessione Firebase")
+    showToast("Impossibile connettersi al database", "err")
+    matches = generateMatches()
+    playerImages = {}
+    return false
   }
 }
 
-async function cloudSave() {
+async function firebaseSave() {
   setSyncStatus("loading", "Salvataggio...")
-  const payload = JSON.stringify({ matches, playerImages })
-  try { localStorage.setItem(STORAGE_KEY, payload) } catch(_) {}
   try {
-    await window.storage.set(STORAGE_KEY, payload, true)
+    const res = await fetch(FIREBASE_URL + DB_PATH, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matches, playerImages })
+    })
+    if (!res.ok) throw new Error("HTTP " + res.status)
     const ora = new Date().toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"})
-    setSyncStatus("ok", "Salvato alle " + ora)
+    setSyncStatus("ok", "Salvato alle " + ora + " ✓")
     return true
   } catch(e) {
-    setSyncStatus("err", "Errore — salvato solo in locale")
-    showToast("Salvato solo localmente!", "err")
+    setSyncStatus("err", "Errore salvataggio")
+    showToast("Errore salvataggio su Firebase!", "err")
     return false
   }
 }
@@ -226,7 +222,9 @@ function renderTable() {
     })
     html += `<div class="card"><b>Girone ${g}</b><table>
       <tr><th>#</th><th>Squadra</th><th>PT</th><th>DR</th><th>GF</th><th>GS</th></tr>
-      ${sorted.map((t,i) => `<tr class="${i<2?'qual':''}"><td>${i+1}</td><td>${t}</td><td>${table[t].pt}</td><td>${table[t].dr}</td><td>${table[t].gf}</td><td>${table[t].gs}</td></tr>`).join("")}
+      ${sorted.map((t,i) => `<tr class="${i<2?'qual':''}">
+        <td>${i+1}</td><td>${t}</td><td>${table[t].pt}</td><td>${table[t].dr}</td><td>${table[t].gf}</td><td>${table[t].gs}</td>
+      </tr>`).join("")}
     </table></div>`
   })
   classifica.innerHTML = html
@@ -240,7 +238,9 @@ function renderMatches() {
     html += `<div class="card"><b>Girone ${g}</b>`
     m.forEach(x => {
       html += `<div class="match ${admin?'admin':''}" onclick="openMatch(${x.id})">
-        <span>${x.a}</span><span>${x.played ? x.g1+"-"+x.g2 : "-"}</span><span>${x.b}</span>
+        <span>${x.a}</span>
+        <span>${x.played ? x.g1+"-"+x.g2 : "-"}</span>
+        <span>${x.b}</span>
       </div>${x.mvp ? `<div class="mvp">⭐ MVP: ${x.mvp}</div>` : ""}`
     })
     html += "</div>"
@@ -265,7 +265,8 @@ function openMatchView(m) {
       ${list.length
         ? list.map(s => `<div class="playerRow">
             ${playerImages[s.name] ? `<img src="${playerImages[s.name]}" class="playerImg">` : ""}
-            <div>${s.name} ⚽ ${s.goals}</div></div>`).join("")
+            <div>${s.name} ⚽ ${s.goals}</div>
+          </div>`).join("")
         : "<div style='padding:10px;color:#94a3b8'>Nessuno</div>"}
     </div>`
   })
@@ -352,7 +353,7 @@ async function saveMatch() {
   rebuildScorers()
   matchPop.style.display = "none"
   renderMatches(); renderTable(); renderScorers()
-  const ok = await cloudSave()
+  const ok = await firebaseSave()
   if (ok) showToast("✅ Salvato!")
 }
 
@@ -404,7 +405,7 @@ function showToast(msg, type="ok") {
 
 /* ─── INIT ─── */
 async function init() {
-  await cloudLoad()
+  await firebaseLoad()
   rebuildScorers()
   renderMatches()
   renderTable()
