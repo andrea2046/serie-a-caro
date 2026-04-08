@@ -1547,26 +1547,40 @@ changePage = function(p, btn) {
 }
 
 // Override init: dopo il caricamento renderizza anche news
-const _origInit = init
-init = async function() {
-  const status = document.getElementById('splashStatus')
-  // Aggiorna stato
-  const setStatus = (msg) => { if(status) status.textContent = msg }
-
-  setStatus('Connessione al server...')
-  await _origInit()
-  setStatus('Dati caricati ✓')
-  await new Promise(r => setTimeout(r, 300))
-  setStatus('Pronto!')
-  await new Promise(r => setTimeout(r, 400))
-
-  renderNews()
-
-  // Nascondi splash con animazione
+function hideSplash() {
   const splash = document.getElementById('splash')
   if (splash) {
     splash.classList.add('hide')
     setTimeout(() => { splash.remove() }, 520)
+  }
+}
+
+const _origInit = init
+init = async function() {
+  const status = document.getElementById('splashStatus')
+  const setStatus = (msg) => { if(status) status.textContent = msg }
+
+  // Timeout di sicurezza: dopo 5s sblocca sempre
+  const safetyTimer = setTimeout(() => {
+    setStatus('Pronto!')
+    renderNews()
+    hideSplash()
+  }, 5000)
+
+  try {
+    setStatus('Connessione...')
+    await _origInit()
+    setStatus('Dati caricati ✓')
+    await new Promise(r => setTimeout(r, 300))
+    setStatus('Pronto!')
+    await new Promise(r => setTimeout(r, 300))
+    renderNews()
+  } catch(e) {
+    setStatus('Errore — modalità offline')
+    await new Promise(r => setTimeout(r, 800))
+  } finally {
+    clearTimeout(safetyTimer)
+    hideSplash()
   }
 }
 
@@ -1992,26 +2006,40 @@ function newsPollHTML(n) {
 }
 
 // ── INIT OVERRIDE ──
-const _origInit = init
-init = async function() {
-  const status = document.getElementById('splashStatus')
-  // Aggiorna stato
-  const setStatus = (msg) => { if(status) status.textContent = msg }
-
-  setStatus('Connessione al server...')
-  await _origInit()
-  setStatus('Dati caricati ✓')
-  await new Promise(r => setTimeout(r, 300))
-  setStatus('Pronto!')
-  await new Promise(r => setTimeout(r, 400))
-
-  renderNews()
-
-  // Nascondi splash con animazione
+function hideSplash() {
   const splash = document.getElementById('splash')
   if (splash) {
     splash.classList.add('hide')
     setTimeout(() => { splash.remove() }, 520)
+  }
+}
+
+const _origInit = init
+init = async function() {
+  const status = document.getElementById('splashStatus')
+  const setStatus = (msg) => { if(status) status.textContent = msg }
+
+  // Timeout di sicurezza: dopo 5s sblocca sempre
+  const safetyTimer = setTimeout(() => {
+    setStatus('Pronto!')
+    renderNews()
+    hideSplash()
+  }, 5000)
+
+  try {
+    setStatus('Connessione...')
+    await _origInit()
+    setStatus('Dati caricati ✓')
+    await new Promise(r => setTimeout(r, 300))
+    setStatus('Pronto!')
+    await new Promise(r => setTimeout(r, 300))
+    renderNews()
+  } catch(e) {
+    setStatus('Errore — modalità offline')
+    await new Promise(r => setTimeout(r, 800))
+  } finally {
+    clearTimeout(safetyTimer)
+    hideSplash()
   }
 }
 </script>
