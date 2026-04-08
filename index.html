@@ -733,6 +733,26 @@ input:focus, select:focus {
 .empty-text { font-size: 14px; }
 
 /* ═══════════════════════════════
+   DELETE BTN
+═══════════════════════════════ */
+.btn-delete-result {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  background: rgba(255,71,87,0.08);
+  border: 1px solid rgba(255,71,87,0.2);
+  color: var(--red);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-delete-result:hover { background: rgba(255,71,87,0.15); }
+
+/* ═══════════════════════════════
    SHOW MORE
 ═══════════════════════════════ */
 .show-more-btn {
@@ -818,6 +838,119 @@ input:focus, select:focus {
   transition: color 0.2s;
 }
 
+
+/* ═══════════════════════════════
+   NEWS
+═══════════════════════════════ */
+.news-fab {
+  position: fixed;
+  bottom: 24px; right: 16px;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  border: none;
+  color: #000;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(245,197,24,0.4);
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.news-fab:hover { transform: scale(1.08); box-shadow: 0 8px 30px rgba(245,197,24,0.5); }
+
+.news-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.news-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+
+.news-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 10px;
+}
+
+.news-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.news-meta { flex: 1; }
+.news-author { font-weight: 700; font-size: 13px; }
+.news-date { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+.news-title {
+  font-family: 'Anton', sans-serif;
+  font-size: 17px;
+  letter-spacing: 1px;
+  padding: 0 14px 8px;
+  line-height: 1.3;
+}
+
+.news-body {
+  font-size: 13px;
+  color: #b0c4d8;
+  padding: 0 14px 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.news-media {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  display: block;
+}
+
+.news-media-audio {
+  width: 100%;
+  padding: 10px 14px 14px;
+  display: block;
+}
+
+.news-media-video {
+  width: 100%;
+  max-height: 260px;
+  display: block;
+  background: #000;
+}
+
+.media-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  transition: border-color 0.2s, background 0.2s;
+}
+.media-upload-btn:hover { border-color: var(--gold); background: rgba(245,197,24,0.04); color: var(--gold); }
+
+.news-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.news-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.news-empty-text { font-size: 14px; }
+
 </style>
 </head>
 <body>
@@ -854,18 +987,47 @@ input:focus, select:focus {
   <button class="nav-btn active" onclick="changePage('classifica',this)">Classifica</button>
   <button class="nav-btn" onclick="changePage('risultati',this)">Partite</button>
   <button class="nav-btn" onclick="changePage('marcatori',this)">Marcatori</button>
+  <button class="nav-btn" onclick="changePage('notizie',this)">News</button>
 </nav>
 
 <div id="classifica" class="container active"><div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Caricamento...</div></div></div>
 <div id="risultati" class="container"></div>
 <div id="marcatori" class="container"></div>
 <div id="matchView" class="container"></div>
+<div id="notizie" class="container"></div>
 
 
 <!-- POLL POPUP -->
 <div class="popup" id="pollPopup">
   <div class="popup-sheet" id="pollSheet">
     <div class="sheet-handle"></div>
+  </div>
+</div>
+
+
+<!-- NEWS POPUP -->
+<div class="popup" id="newsPop">
+  <div class="popup-sheet" style="max-height:95vh">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="newsPopTitle">📰 Nuova notizia</div>
+
+    <label class="form-label">Titolo</label>
+    <input id="newsTitle" placeholder="Titolo della notizia" maxlength="80">
+
+    <label class="form-label">Descrizione</label>
+    <textarea id="newsBody" placeholder="Scrivi qualcosa..." rows="3"
+      style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;margin-top:0"></textarea>
+
+    <label class="form-label">Media (foto / video / audio)</label>
+    <label class="media-upload-btn" id="mediaUploadLabel">
+      <span id="mediaUploadText">📎 Seleziona file</span>
+      <input type="file" id="newsMedia" accept="image/*,video/*,audio/*" style="display:none" onchange="previewMedia(this)">
+    </label>
+    <div id="mediaPreview"></div>
+
+    <button class="btn btn-green" onclick="publishNews()" style="margin-top:16px">📢 Pubblica</button>
+    <button class="btn btn-danger" id="deleteNewsBtn" onclick="deleteNews()" style="display:none;width:100%;margin-top:8px;justify-content:center;padding:11px">🗑️ Elimina notizia</button>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="newsPop.style.display='none'">Annulla</button>
   </div>
 </div>
 
@@ -896,10 +1058,12 @@ input:focus, select:focus {
     <input id="mvp" placeholder="Nome giocatore MVP">
     <button class="btn btn-green" onclick="saveMatch()">💾 &nbsp;Salva partita</button>
     <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="matchPop.style.display='none'">Annulla</button>
+    <button class="btn-delete-result" id="deleteResultBtn" onclick="deleteResult()" style="display:none">🗑️ Elimina risultato</button>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
+<button class="news-fab" id="newsFab" onclick="openNewsPop()" title="Nuova notizia">+</button>
 
 <script>
 const BIN_ID = "69d681f3856a6821891087c0"
@@ -1106,6 +1270,7 @@ function openMatchAdmin(m) {
   scorersA.innerHTML = buildScorersUI("A")
   scorersB.innerHTML = buildScorersUI("B")
   renderTemp("A"); renderTemp("B")
+  document.getElementById('deleteResultBtn').style.display = m.played ? 'block' : 'none'
 }
 
 function buildScorersUI(side) {
@@ -1286,6 +1451,18 @@ renderTable = function() {
   classifica.innerHTML = html
 };
 
+// ── ELIMINA RISULTATO ──
+function deleteResult() {
+  if (!confirm('Sei sicuro di voler eliminare questo risultato?')) return
+  let m = matches.find(x => x.id === editMatch)
+  m.g1 = null; m.g2 = null; m.mvp = ""
+  m.played = false; m.scorersA = []; m.scorersB = []
+  rebuildScorers()
+  matchPop.style.display = 'none'
+  renderMatches(); renderTable(); renderScorers()
+  firebaseSave().then(ok => { if(ok) showToast("✅ Risultato eliminato!") })
+}
+
 // ── SONDAGGI ──
 function getVotes(matchId) {
   try { return JSON.parse(localStorage.getItem('sac_v_' + matchId) || '{"1":0,"x":0,"2":0}') }
@@ -1303,7 +1480,30 @@ function castVote(matchId, choice) {
     localStorage.removeItem('sac_uv_' + matchId)
   }
   localStorage.setItem('sac_v_' + matchId, JSON.stringify(votes))
-  renderMatches()
+  // Aggiorna solo la pill e il sheet senza re-render completo
+  updatePollUI(matchId, votes, getUserVote(matchId))
+  // Riaggiona anche il sheet se aperto
+  const m = matches.find(x => x.id === matchId)
+  if (m && pollPopup.style.display === 'flex') openPoll(matchId, m.a, m.b)
+}
+
+function updatePollUI(matchId, votes, uv) {
+  // Aggiorna la pill nella lista partite
+  const pills = document.querySelectorAll('[data-pollid="' + matchId + '"]')
+  pills.forEach(pill => {
+    const uvColor = uv==="1"?"#4a9eff":uv==="x"?"#f5c518":uv==="2"?"#ff4757":null
+    const total = votes["1"] + votes["x"] + votes["2"]
+    if (uv) {
+      pill.innerHTML = `<div style="font-family:'Anton',sans-serif;font-size:16px;color:${uvColor};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`
+      pill.style.borderColor = uvColor + '44'
+      pill.style.background = uvColor + '11'
+    } else {
+      pill.innerHTML = `<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`
+      pill.style.borderColor = ''
+      pill.style.background = ''
+    }
+  })
 }
 
 function openPoll(matchId, teamA, teamB) {
@@ -1527,6 +1727,196 @@ showToast = function(msg, type="ok") {
     setTimeout(() => toast.style.display="none", 300)
   }, 2500)
 };
+
+// ═══════════════════════════════
+// NEWS SYSTEM
+// ═══════════════════════════════
+let newsList = []
+let editingNewsId = null
+let pendingMediaB64 = null
+let pendingMediaType = null
+
+async function loadNews() {
+  try {
+    const res = await fetch("https://api.jsonbin.io/v3/b/" + BIN_ID + "/latest", {
+      headers: { "X-Master-Key": API_KEY }
+    })
+    const json = await res.json()
+    newsList = json.record.news || []
+  } catch(e) { newsList = [] }
+  renderNews()
+}
+
+async function saveNews() {
+  try {
+    const rec = await fetch("https://api.jsonbin.io/v3/b/" + BIN_ID + "/latest", {
+      headers: { "X-Master-Key": API_KEY }
+    }).then(r => r.json()).then(j => j.record)
+    rec.news = newsList
+    await fetch("https://api.jsonbin.io/v3/b/" + BIN_ID, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Master-Key": API_KEY },
+      body: JSON.stringify(rec)
+    })
+  } catch(e) { console.error(e) }
+}
+
+function renderNews() {
+  const el = document.getElementById('notizie')
+  if (!el) return
+
+  // Mostra FAB solo se admin e nella tab notizie
+  const fab = document.getElementById('newsFab')
+  if (fab) fab.style.display = admin ? 'flex' : 'none'
+
+  if (!newsList.length) {
+    el.innerHTML = `<div class="news-empty">
+      <div class="news-empty-icon">📰</div>
+      <div class="news-empty-text">${admin ? 'Nessuna notizia. Premi + per pubblicare.' : 'Nessuna notizia ancora.'}</div>
+    </div>`
+    return
+  }
+
+  const sorted = [...newsList].sort((a,b) => b.ts - a.ts)
+  el.innerHTML = sorted.map(n => {
+    const date = new Date(n.ts).toLocaleDateString('it-IT', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
+    let mediaHtml = ''
+    if (n.media) {
+      if (n.mediaType.startsWith('image')) {
+        mediaHtml = `<img src="${n.media}" class="news-media" alt="">`
+      } else if (n.mediaType.startsWith('video')) {
+        mediaHtml = `<video src="${n.media}" class="news-media-video" controls playsinline></video>`
+      } else if (n.mediaType.startsWith('audio')) {
+        mediaHtml = `<audio src="${n.media}" class="news-media-audio" controls></audio>`
+      }
+    }
+    return `<div class="news-card" onclick="${admin ? 'openNewsEdit('+JSON.stringify(n.id)+')' : ''}">
+      ${mediaHtml}
+      <div class="news-card-head">
+        <div class="news-avatar">🏆</div>
+        <div class="news-meta">
+          <div class="news-author">SAC Admin</div>
+          <div class="news-date">${date}</div>
+        </div>
+      </div>
+      <div class="news-title">${n.title}</div>
+      ${n.body ? `<div class="news-body">${n.body}</div>` : ''}
+    </div>`
+  }).join('')
+}
+
+function openNewsPop() {
+  editingNewsId = null
+  pendingMediaB64 = null
+  pendingMediaType = null
+  document.getElementById('newsTitle').value = ''
+  document.getElementById('newsBody').value = ''
+  document.getElementById('newsMedia').value = ''
+  document.getElementById('mediaPreview').innerHTML = ''
+  document.getElementById('mediaUploadText').textContent = '📎 Seleziona file'
+  document.getElementById('newsPopTitle').textContent = '📰 Nuova notizia'
+  document.getElementById('deleteNewsBtn').style.display = 'none'
+  newsPop.style.display = 'flex'
+}
+
+function openNewsEdit(id) {
+  if (!admin) return
+  const n = newsList.find(x => x.id === id)
+  if (!n) return
+  editingNewsId = id
+  pendingMediaB64 = n.media || null
+  pendingMediaType = n.mediaType || null
+  document.getElementById('newsTitle').value = n.title
+  document.getElementById('newsBody').value = n.body || ''
+  document.getElementById('newsPopTitle').textContent = '✏️ Modifica notizia'
+  document.getElementById('deleteNewsBtn').style.display = 'flex'
+  const prev = document.getElementById('mediaPreview')
+  if (n.media) {
+    if (n.mediaType.startsWith('image')) prev.innerHTML = `<img src="${n.media}" style="width:100%;border-radius:10px;margin-top:8px">`
+    else if (n.mediaType.startsWith('video')) prev.innerHTML = `<video src="${n.media}" style="width:100%;border-radius:10px;margin-top:8px" controls></video>`
+    else if (n.mediaType.startsWith('audio')) prev.innerHTML = `<audio src="${n.media}" style="width:100%;margin-top:8px" controls></audio>`
+  } else {
+    prev.innerHTML = ''
+  }
+  document.getElementById('mediaUploadText').textContent = n.media ? '✅ Media caricato' : '📎 Seleziona file'
+  newsPop.style.display = 'flex'
+}
+
+function previewMedia(input) {
+  const file = input.files[0]
+  if (!file) return
+  document.getElementById('mediaUploadText').textContent = '⏳ Caricamento...'
+  const reader = new FileReader()
+  reader.onload = ev => {
+    pendingMediaB64 = ev.target.result
+    pendingMediaType = file.type
+    document.getElementById('mediaUploadText').textContent = '✅ ' + file.name
+    const prev = document.getElementById('mediaPreview')
+    if (file.type.startsWith('image')) {
+      prev.innerHTML = `<img src="${pendingMediaB64}" style="width:100%;border-radius:10px;margin-top:8px;max-height:200px;object-fit:cover">`
+    } else if (file.type.startsWith('video')) {
+      prev.innerHTML = `<video src="${pendingMediaB64}" style="width:100%;border-radius:10px;margin-top:8px" controls></video>`
+    } else if (file.type.startsWith('audio')) {
+      prev.innerHTML = `<audio src="${pendingMediaB64}" style="width:100%;margin-top:8px" controls></audio>`
+    }
+  }
+  reader.readAsDataURL(file)
+}
+
+async function publishNews() {
+  const title = document.getElementById('newsTitle').value.trim()
+  if (!title) { showToast("Inserisci un titolo!", "err"); return }
+
+  if (editingNewsId) {
+    const n = newsList.find(x => x.id === editingNewsId)
+    n.title = title
+    n.body = document.getElementById('newsBody').value.trim()
+    if (pendingMediaB64 !== n.media) {
+      n.media = pendingMediaB64
+      n.mediaType = pendingMediaType
+    }
+  } else {
+    newsList.push({
+      id: Date.now(),
+      ts: Date.now(),
+      title,
+      body: document.getElementById('newsBody').value.trim(),
+      media: pendingMediaB64,
+      mediaType: pendingMediaType
+    })
+  }
+
+  newsPop.style.display = 'none'
+  renderNews()
+  showToast("📢 Pubblicato!")
+  await saveNews()
+}
+
+async function deleteNews() {
+  if (!editingNewsId) return
+  if (!confirm('Eliminare questa notizia?')) return
+  newsList = newsList.filter(x => x.id !== editingNewsId)
+  newsPop.style.display = 'none'
+  renderNews()
+  showToast("🗑️ Eliminata")
+  await saveNews()
+}
+
+// Mostra/nascondi FAB in base alla tab attiva
+const _cp = changePage
+changePage = function(p, btn) {
+  _cp(p, btn)
+  const fab = document.getElementById('newsFab')
+  if (fab) fab.style.display = (admin && p === 'notizie') ? 'flex' : 'none'
+}
+
+// Override init per caricare news
+const _origInit = init
+init = async function() {
+  await _origInit()
+  await loadNews()
+}
+
 </script>
 </body>
 </html>
