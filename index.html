@@ -132,6 +132,14 @@ function generateMatches() {
   return out
 }
 
+/* converte quello che arriva da Firebase in array ordinato per id */
+function toArray(data) {
+  if (!data) return null
+  if (Array.isArray(data)) return data.filter(Boolean)
+  /* è un oggetto con chiavi numeriche */
+  return Object.values(data).sort((a, b) => a.id - b.id)
+}
+
 function compressImage(file) {
   return new Promise((resolve) => {
     const img = new Image()
@@ -154,10 +162,9 @@ function setSyncStatus(state, label) {
   document.getElementById("syncLabel").textContent = label
 }
 
-/* ─── FIREBASE: singola fetch con timeout ─── */
 async function fbRequest(path, opts = {}) {
   const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), 6000)
+  const t = setTimeout(() => ctrl.abort(), 8000)
   try {
     const res = await fetch(FB + path + ".json", { ...opts, signal: ctrl.signal })
     clearTimeout(t)
@@ -182,9 +189,19 @@ async function firebaseLoad() {
     return
   }
 
-  matches = (Array.isArray(result.data) && result.data.length) ? result.data : generateMatches()
+  /* converte oggetto o array in array pulito */
+  const arr = toArray(result.data)
+  matches = (arr && arr.length) ? arr : generateMatches()
 
-  /* carica foto — se fallisce non blocca */
+  /* se i dati erano in formato oggetto, risalvali come array pulito */
+  if (result.data && !Array.isArray(result.data)) {
+    await fbRequest("/matches", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(matches)
+    })
+  }
+
   const photos = await fbRequest("/photos")
   playerImages = (photos.ok && photos.data) ? photos.data : {}
 
@@ -217,7 +234,6 @@ async function firebaseSavePhoto(name, dataUrl) {
   })
 }
 
-/* ─── AUTH ─── */
 function openLogin() { loginPopup.style.display = "flex" }
 function doLogin() {
   if (pass.value === PASSWORD) {
@@ -236,7 +252,6 @@ function logout() {
   renderMatches()
 }
 
-/* ─── CLASSIFICA ─── */
 function renderTable() {
   let table = {}
   Object.values(groupsDef).flat().forEach(t => { table[t] = {pt:0,gf:0,gs:0,dr:0} })
@@ -266,7 +281,6 @@ function renderTable() {
   classifica.innerHTML = html
 }
 
-/* ─── RISULTATI ─── */
 function renderMatches() {
   let html = ""
   Object.keys(groupsDef).forEach(g => {
@@ -309,7 +323,6 @@ function openMatchView(m) {
   matchView.innerHTML = html
 }
 
-/* ─── ADMIN MATCH ─── */
 function openMatchAdmin(m) {
   editMatch = m.id
   matchPop.style.display = "flex"
@@ -394,7 +407,6 @@ async function saveMatch() {
   else showToast("Errore salvataggio!", "err")
 }
 
-/* ─── MARCATORI ─── */
 function rebuildScorers() {
   scorers = {}; mvpCount = {}
   matches.forEach(match => {
@@ -428,11 +440,11 @@ function renderScorers() {
   marcatori.innerHTML = html
 }
 
-/* ─── UTILS ─── */
 function changePage(p) {
   document.querySelectorAll(".container").forEach(c => c.classList.remove("active"))
   document.getElementById(p).classList.add("active")
 }
+
 function showToast(msg, type="ok") {
   toast.textContent = msg
   toast.className = "toast " + type
@@ -440,7 +452,6 @@ function showToast(msg, type="ok") {
   setTimeout(() => toast.style.display = "none", 2500)
 }
 
-/* ─── INIT ─── */
 async function init() {
   await firebaseLoad()
   rebuildScorers()
