@@ -495,28 +495,44 @@ const getUserVote = id => localStorage.getItem('suv_'+id)||null
 const saveVote = (id,choice) => localStorage.setItem('suv_'+id,choice)
 const removeVote = id => localStorage.removeItem('suv_'+id)
 
-function castVote(matchId, choice) {
+async function castVote(matchId, choice) {
   matchId = parseInt(matchId)
   const prev = getUserVote(matchId)
-  if (prev === choice) return // già votato stessa opzione, ignora
+  
+  // Toggle: se si riclicca la stessa opzione, rimuovi il voto
+  const isRemoving = prev === choice
   
   // Aggiorna voto personale in localStorage
-  localStorage.setItem('suv_'+matchId, choice)
+  if (isRemoving) localStorage.removeItem('suv_'+matchId)
+  else localStorage.setItem('suv_'+matchId, choice)
   
-  // Aggiorna contatori nel match in memoria
-  const {matches} = activeData()
-  const m = matches.find(x => x.id === matchId)
+  // Aggiorna contatori nel match globale (riferimento diretto)
+  const arr = activeLeague === "M" ? matches : matchesF
+  const m = arr.find(x => x.id === matchId)
   if (!m) return
   if (!m.pollVotes) m.pollVotes = {"1":0,"x":0,"2":0}
+  
+  // Rimuovi voto precedente
   if (prev) m.pollVotes[prev] = Math.max(0, (m.pollVotes[prev]||0) - 1)
-  m.pollVotes[choice] = (m.pollVotes[choice]||0) + 1
+  // Aggiungi nuovo (se non stiamo rimuovendo)
+  if (!isRemoving) m.pollVotes[choice] = (m.pollVotes[choice]||0) + 1
   
   // Aggiorna UI subito
-  updatePollPill(matchId, m.pollVotes, choice)
+  const newUv = isRemoving ? null : choice
+  updatePollPill(matchId, m.pollVotes, newUv)
   if (pollPopup.style.display==='flex') openPoll(matchId, m.a, m.b)
   
-  // Salva su JSONBin in background
-  binSave()
+  // Salva su JSONBin
+  setSyncStatus("loading", "Salvataggio voto...")
+  try {
+    const res = await fetch(BIN_URL, {
+      method: "PUT",
+      headers: {"Content-Type":"application/json","X-Master-Key":API_KEY},
+      body: JSON.stringify({matches, matchesF, playerImages, news:newsList})
+    })
+    if(res.ok) setSyncStatus("ok","Voto salvato ✓")
+    else setSyncStatus("err","Errore voto")
+  } catch(e) { setSyncStatus("err","Errore connessione") }
 }
 
 function updatePollPill(matchId,votes,uv) {
@@ -540,12 +556,18 @@ function openPoll(matchId,teamA,teamB) {
   matchId=parseInt(matchId)
   const votes=getVotes(matchId),uv=getUserVote(matchId)
   const total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
-  const pct=k=>total===0?33:Math.round((votes[k]/total)*100)
+  const pct=k=>total===0?33:Math.round(((votes[k]||0)/total)*100)
   const btn=(k,label,color)=>{
     const active=uv===k,p=pct(k)
     return `<div class="poll-opt" onclick="castVote(${matchId},'${k}')" style="border-color:${active?color+'55':'var(--border)'};background:${active?color+'12':'transparent'}"><div class="poll-bar-fill" style="width:${p}%;background:${color}16"></div><div class="poll-opt-inner"><span class="poll-choice" style="color:${active?color:'var(--text)'}">${label}</span><span class="poll-pct" style="color:${active?color:'var(--muted)'}">${p}%</span></div></div>`
   }
-  pollSheet.innerHTML=`<div class="sheet-handle"></div><div class="sheet-title" style="font-size:14px;margin-bottom:4px">${teamA}</div><div style="text-align:center;color:var(--muted);font-size:11px;margin-bottom:14px">vs ${teamB}</div><div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Chi vince?${total>0?` <span style="color:var(--gold);margin-left:6px">${total} voti</span>`:''} </div><div class="poll-3grid">${btn("1","1","#3d8ef0")}${btn("x","X","#f5c518")}${btn("2","2","#ff4454")}</div><button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:14px" onclick="pollPopup.style.display='none'">Chiudi</button>`
+  pollSheet.innerHTML=`<div class="sheet-handle"></div>
+    <div class="sheet-title" style="font-size:14px;margin-bottom:4px">${teamA}</div>
+    <div style="text-align:center;color:var(--muted);font-size:11px;margin-bottom:14px">vs ${teamB}</div>
+    <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Chi vince?${total>0?` <span style="color:var(--gold);margin-left:6px">${total} voti</span>`:''}</div>
+    <div class="poll-3grid">${btn("1","1","#3d8ef0")}${btn("x","X","#f5c518")}${btn("2","2","#ff4454")}</div>
+    ${uv?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:10px">Riclicca la tua scelta per togliere il voto</div>`:''}
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:14px" onclick="pollPopup.style.display='none'">Chiudi</button>`
   pollPopup.style.display='flex'
 }
 
