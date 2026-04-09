@@ -488,8 +488,11 @@ function renderTable() {
 // ══════════════════════════════════════
 const getVotes = id => { try{return JSON.parse(localStorage.getItem('sv_'+id)||'{"1":0,"x":0,"2":0}')}catch(e){return{"1":0,"x":0,"2":0}} }
 const getUserVote = id => localStorage.getItem('suv_'+id)||null
+const saveVote = (id,choice) => localStorage.setItem('suv_'+id,choice)
+const removeVote = id => localStorage.removeItem('suv_'+id)
 
 function castVote(matchId, choice) {
+  matchId = parseInt(matchId) // assicura numero
   const prev=getUserVote(matchId), votes=getVotes(matchId)
   if(prev) votes[prev]=Math.max(0,votes[prev]-1)
   if(prev!==choice){votes[choice]=(votes[choice]||0)+1;localStorage.setItem('suv_'+matchId,choice)}
@@ -781,15 +784,29 @@ function openNewsEdit(id) {
 function previewMedia(input) {
   const file=input.files[0]; if(!file) return
   document.getElementById('mediaUploadText').textContent='⏳ Caricamento...'
-  const reader=new FileReader()
-  reader.onload=ev=>{
-    pendingMediaB64=ev.target.result; pendingMediaType=file.type
-    document.getElementById('mediaUploadText').textContent='✅ '+file.name
-    const prev=document.getElementById('mediaPreview')
-    if(file.type.startsWith('image')) prev.innerHTML=`<img src="${pendingMediaB64}" style="width:100%;border-radius:10px;margin-top:8px;max-height:200px;object-fit:cover">`
-    else if(file.type.startsWith('video')) prev.innerHTML=`<video src="${pendingMediaB64}" style="width:100%;border-radius:10px;margin-top:8px" controls></video>`
-    else if(file.type.startsWith('audio')) prev.innerHTML=`<audio src="${pendingMediaB64}" style="width:100%;margin-top:8px" controls></audio>`
-  }; reader.readAsDataURL(file)
+  const prev=document.getElementById('mediaPreview')
+  if(file.type.startsWith('image')) {
+    const img=new Image(), url=URL.createObjectURL(file)
+    img.onload=()=>{
+      const canvas=document.createElement('canvas')
+      const max=600, ratio=Math.min(max/img.width, max/img.height, 1)
+      canvas.width=Math.round(img.width*ratio); canvas.height=Math.round(img.height*ratio)
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height)
+      URL.revokeObjectURL(url)
+      pendingMediaB64=canvas.toDataURL('image/jpeg',0.6)
+      pendingMediaType='image/jpeg'
+      document.getElementById('mediaUploadText').textContent='✅ '+file.name
+      prev.innerHTML=`<img src="${pendingMediaB64}" style="width:100%;border-radius:10px;margin-top:8px;max-height:200px;object-fit:cover">`
+    }; img.src=url
+  } else {
+    const reader=new FileReader()
+    reader.onload=ev=>{
+      pendingMediaB64=ev.target.result; pendingMediaType=file.type
+      document.getElementById('mediaUploadText').textContent='✅ '+file.name
+      if(file.type.startsWith('video')) prev.innerHTML=`<video src="${pendingMediaB64}" style="width:100%;border-radius:10px;margin-top:8px" controls></video>`
+      else if(file.type.startsWith('audio')) prev.innerHTML=`<audio src="${pendingMediaB64}" style="width:100%;margin-top:8px" controls></audio>`
+    }; reader.readAsDataURL(file)
+  }
 }
 
 async function publishNews() {
