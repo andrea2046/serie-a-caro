@@ -524,9 +524,17 @@ async function binLoad() {
     matchesF = (data.matchesF&&data.matchesF.length) ? data.matchesF : generateMatches(groupsDefF)
     playerImages = data.playerImages||{}
     newsList = data.news||[]
-    // Carica dati pronostici da JSONBin
-    if(data.proUsers) localStorage.setItem('sac_pro_users',JSON.stringify(data.proUsers))
-    if(data.proData) localStorage.setItem('sac_pro_data',JSON.stringify(data.proData))
+    // Carica dati pronostici: MERGE (locale + JSONBin, JSONBin vince per altri utenti)
+    if(data.proUsers){
+      var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
+      var mergedU=Object.assign({},data.proUsers,localU);
+      localStorage.setItem('sac_pro_users',JSON.stringify(mergedU));
+    }
+    if(data.proData){
+      var localD=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+      var mergedD=Object.assign({},data.proData,localD);
+      localStorage.setItem('sac_pro_data',JSON.stringify(mergedD));
+    }
     setSyncStatus("ok","Sincronizzato ✓")
   } catch(e) {
     setSyncStatus("err","Errore connessione")
@@ -999,7 +1007,6 @@ function saveAllData(d){
 
 var _syncProTimer=null;
 function _syncPro(){
-  // Debounce: aspetta 1s prima di salvare (evita troppe chiamate)
   clearTimeout(_syncProTimer);
   _syncProTimer=setTimeout(function(){
     var body={
@@ -1009,10 +1016,10 @@ function _syncPro(){
     };
     fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
     .catch(function(){});
-  },1000);
+  },300); // 300ms debounce
 }
 function getProSession(){return JSON.parse(localStorage.getItem('sac_pro_session')||'null');}
-function setProSession(u){localStorage.setItem('sac_pro_session',JSON.stringify(u));}
+function setProSession(u){localStorage.setItem('sac_pro_session',JSON.stringify(u));_syncPro();}
 function clearProSession(){localStorage.removeItem('sac_pro_session');}
 
 function getMyData(){
@@ -1455,6 +1462,26 @@ function checkSel(b){
   return 'pending';
 }
 
+
+async function refreshPro(){
+  setSyncStatus('loading','Aggiornamento...');
+  try {
+    var res=await fetch(BIN_URL+'/latest',{headers:{'X-Master-Key':API_KEY}});
+    var data=(await res.json()).record;
+    if(data.proUsers){
+      var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
+      localStorage.setItem('sac_pro_users',JSON.stringify(Object.assign({},data.proUsers,localU)));
+    }
+    if(data.proData){
+      var localD=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+      localStorage.setItem('sac_pro_data',JSON.stringify(Object.assign({},data.proData,localD)));
+    }
+    setSyncStatus('ok','Aggiornato ✓');
+    resolveMyBets();
+    renderPronostici();
+    showToast('✓ Dati aggiornati');
+  } catch(e){ setSyncStatus('err','Errore'); }
+}
 function resolveMyBets(){
   // Controlla e paga le scommesse dell'utente corrente
   // usando i risultati attuali in matches/matchesF (caricati da JSONBin)
@@ -1632,8 +1659,10 @@ function renderPronostici(){
   h+='<div class="pro-token-num">🪙 '+tokens+'</div>';
   h+='<div class="pro-token-lbl">'+displayName+'</div>';
   h+='</div>';
+  h+='<div style="display:flex;gap:6px">';
+  h+='<button onclick="refreshPro()" style="background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.2);color:var(--blue);padding:7px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">↺</button>';
   h+='<button onclick="proLogout()" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.2);color:var(--red);padding:7px 12px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Esci</button>';
-  h+='</div>';
+  h+='</div></div>';
 
   // Actions - ruota e ads grandi
   h+='<div class="pro-actions-row">';
