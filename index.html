@@ -616,12 +616,21 @@ function logout() {
   document.getElementById('newsFab').style.display='none'; renderMatches()
 }
 
+var _lastProRefresh=0;
 function changePage(p, btn) {
   document.querySelectorAll(".container").forEach(c=>c.classList.remove("active"))
   document.getElementById(p).classList.add("active")
   if (btn) { document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active")); btn.classList.add("active") }
   document.getElementById('newsFab').style.display = (admin && p==='notizie') ? 'flex' : 'none'
-  if (p==='pronostici') renderPronostici()
+  if (p==='pronostici') {
+    var now=Date.now();
+    if(now-_lastProRefresh>30000){
+      _lastProRefresh=now;
+      refreshPro();
+    } else {
+      renderPronostici();
+    }
+  }
   const hBtn = document.getElementById('proAdminHeaderBtn')
   if (hBtn) hBtn.style.display = (p==='pronostici' && proAdminLogged) ? 'flex' : 'none'
 }
@@ -1100,7 +1109,22 @@ function getMyData(){
   return all[sess.username];
 }
 function saveMyData(d){var sess=getProSession();if(!sess) return;var all=getAllData();all[sess.username]=d;saveAllData(all);}
-function addTokens(n){var d=getMyData();if(!d) return;d.tokens=Math.max(0,d.tokens+n);saveMyData(d);}
+function addTokens(n){
+  var d=getMyData();if(!d) return;
+  d.tokens=Math.max(0,(d.tokens||0)+n);
+  saveMyData(d);
+  _syncProNow();
+}
+
+function _syncProNow(){
+  var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
+    proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
+    proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')};
+  setSyncStatus('loading','Salvataggio...');
+  fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
+  .then(function(r){if(r.ok)setSyncStatus('ok','Salvato ✓');else setSyncStatus('err','Errore');})
+  .catch(function(){setSyncStatus('err','Errore connessione');});
+}
 
 function avatarGridHTML(selIdx,clickFn,gridId){
   var h='<div class="avatar-grid" id="'+gridId+'">';
@@ -1328,6 +1352,7 @@ function piazzaScommessa(){
   proSchedina=[];
   proMatchSel={};
   showToast('🎰 Scommessa piazzata! Quota '+qt+'x');
+  _syncProNow(); // salva immediatamente
   renderPronostici();
 }
 
@@ -1535,23 +1560,38 @@ function checkSel(b){
 
 
 async function refreshPro(){
-  setSyncStatus('loading','Aggiornamento...');
   try {
     var res=await fetch(BIN_URL+'/latest',{headers:{'X-Master-Key':API_KEY}});
     var data=(await res.json()).record;
     if(data.proUsers){
       var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
-      localStorage.setItem('sac_pro_users',JSON.stringify(Object.assign({},data.proUsers,localU)));
+      // JSONBin vince per credenziali, aggiungi solo utenti solo locali
+      localStorage.setItem('sac_pro_users',JSON.stringify(Object.assign({},localU,data.proUsers)));
     }
     if(data.proData){
+      // JSONBin è sempre la fonte di verità per tutti gli utenti
+      var serverD=data.proData;
       var localD=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
-      localStorage.setItem('sac_pro_data',JSON.stringify(Object.assign({},data.proData,localD)));
+      var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
+      // Per l'utente corrente: prendi il massimo tra locale e server
+      // (protegge da azioni locali non ancora sincronizzate)
+      if(sess&&sess.username&&localD[sess.username]&&serverD[sess.username]){
+        var loc=localD[sess.username],srv=serverD[sess.username];
+        var merged=Object.assign({},srv); // parte da server
+        // Se locale ha più token (azione fatta ora non ancora su server) mantieni locale
+        if((loc.tokens||0)>(srv.tokens||0)) merged.tokens=loc.tokens;
+        // Se locale ha più storia mantieni la lista più lunga
+        if((loc.storia||[]).length>(srv.storia||[]).length) merged.storia=loc.storia;
+        serverD[sess.username]=merged;
+      } else if(sess&&sess.username&&localD[sess.username]&&!serverD[sess.username]){
+        serverD[sess.username]=localD[sess.username];
+      }
+      localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
     }
-    setSyncStatus('ok','Aggiornato ✓');
+    setSyncStatus('ok','Sincronizzato ✓');
     resolveMyBets();
     renderPronostici();
-    showToast('✓ Dati aggiornati');
-  } catch(e){ setSyncStatus('err','Errore'); }
+  } catch(e){ setSyncStatus('err','Errore sync'); }
 }
 function resolveMyBets(){
   // Controlla e paga le scommesse dell'utente corrente
