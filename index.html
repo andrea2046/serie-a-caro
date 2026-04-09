@@ -486,35 +486,60 @@ function renderTable() {
 // ══════════════════════════════════════
 // RENDER PARTITE
 // ══════════════════════════════════════
-const getVotes = id => { try{return JSON.parse(localStorage.getItem('sv_'+id)||'{"1":0,"x":0,"2":0}')}catch(e){return{"1":0,"x":0,"2":0}} }
+function getVotes(id) {
+  const {matches} = activeData()
+  const m = matches.find(x => x.id === parseInt(id))
+  return (m && m.pollVotes) ? m.pollVotes : {"1":0,"x":0,"2":0}
+}
 const getUserVote = id => localStorage.getItem('suv_'+id)||null
 const saveVote = (id,choice) => localStorage.setItem('suv_'+id,choice)
 const removeVote = id => localStorage.removeItem('suv_'+id)
 
 function castVote(matchId, choice) {
-  matchId = parseInt(matchId) // assicura numero
-  const prev=getUserVote(matchId), votes=getVotes(matchId)
-  if(prev) votes[prev]=Math.max(0,votes[prev]-1)
-  if(prev!==choice){votes[choice]=(votes[choice]||0)+1;localStorage.setItem('suv_'+matchId,choice)}
-  else localStorage.removeItem('suv_'+matchId)
-  localStorage.setItem('sv_'+matchId,JSON.stringify(votes))
-  updatePollPill(matchId,votes,getUserVote(matchId))
-  const {matches}=activeData(), m=matches.find(x=>x.id===matchId)
-  if(m&&pollPopup.style.display==='flex') openPoll(matchId,m.a,m.b)
+  matchId = parseInt(matchId)
+  const prev = getUserVote(matchId)
+  if (prev === choice) return // già votato stessa opzione, ignora
+  
+  // Aggiorna voto personale in localStorage
+  localStorage.setItem('suv_'+matchId, choice)
+  
+  // Aggiorna contatori nel match in memoria
+  const {matches} = activeData()
+  const m = matches.find(x => x.id === matchId)
+  if (!m) return
+  if (!m.pollVotes) m.pollVotes = {"1":0,"x":0,"2":0}
+  if (prev) m.pollVotes[prev] = Math.max(0, (m.pollVotes[prev]||0) - 1)
+  m.pollVotes[choice] = (m.pollVotes[choice]||0) + 1
+  
+  // Aggiorna UI subito
+  updatePollPill(matchId, m.pollVotes, choice)
+  if (pollPopup.style.display==='flex') openPoll(matchId, m.a, m.b)
+  
+  // Salva su JSONBin in background
+  binSave()
 }
 
 function updatePollPill(matchId,votes,uv) {
+  const total = (votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
+  const c = uv==="1"?"#3d8ef0":uv==="x"?"#f5c518":uv==="2"?"#ff4454":null
   document.querySelectorAll('[data-pollid="'+matchId+'"]').forEach(pill=>{
-    const total=votes["1"]+votes["x"]+votes["2"]
-    const c=uv==="1"?"#3d8ef0":uv==="x"?"#f5c518":uv==="2"?"#ff4454":null
-    if(uv){pill.innerHTML=`<div style="font-family:'Anton',sans-serif;font-size:16px;color:${c};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`;pill.style.borderColor=c+'44';pill.style.background=c+'10'}
-    else{pill.innerHTML=`<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`;pill.style.borderColor='';pill.style.background=''}
+    if(uv){
+      pill.innerHTML=`<div style="font-family:'Anton',sans-serif;font-size:16px;color:${c};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`
+      pill.style.borderColor=c+'44'; pill.style.background=c+'10'
+    } else if(total>0) {
+      pill.innerHTML=`<div class="score-pill-vs-label">vs</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`
+      pill.style.borderColor=''; pill.style.background=''
+    } else {
+      pill.innerHTML=`<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`
+      pill.style.borderColor=''; pill.style.background=''
+    }
   })
 }
 
 function openPoll(matchId,teamA,teamB) {
+  matchId=parseInt(matchId)
   const votes=getVotes(matchId),uv=getUserVote(matchId)
-  const total=votes["1"]+votes["x"]+votes["2"]
+  const total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
   const pct=k=>total===0?33:Math.round((votes[k]/total)*100)
   const btn=(k,label,color)=>{
     const active=uv===k,p=pct(k)
