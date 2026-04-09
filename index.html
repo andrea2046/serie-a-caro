@@ -524,6 +524,9 @@ async function binLoad() {
     matchesF = (data.matchesF&&data.matchesF.length) ? data.matchesF : generateMatches(groupsDefF)
     playerImages = data.playerImages||{}
     newsList = data.news||[]
+    // Carica dati pronostici da JSONBin
+    if(data.proUsers) localStorage.setItem('sac_pro_users',JSON.stringify(data.proUsers))
+    if(data.proData) localStorage.setItem('sac_pro_data',JSON.stringify(data.proData))
     setSyncStatus("ok","Sincronizzato ✓")
   } catch(e) {
     setSyncStatus("err","Errore connessione")
@@ -537,7 +540,7 @@ async function binLoad() {
 async function binSave() {
   setSyncStatus("loading","Salvataggio...")
   try {
-    const res = await fetch(BIN_URL,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":API_KEY},body:JSON.stringify({matches,matchesF,playerImages,news:newsList})})
+    const res = await fetch(BIN_URL,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":API_KEY},body:JSON.stringify({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')})})
     if (!res.ok) throw new Error("HTTP "+res.status)
     const ora = new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})
     setSyncStatus("ok","Salvato alle "+ora+" ✓")
@@ -650,7 +653,7 @@ async function castVote(matchId, choice) {
   if (pollPopup.style.display==='flex') openPoll(matchId, m.a, m.b)
   setSyncStatus("loading", "Salvataggio voto...")
   try {
-    const res = await fetch(BIN_URL, {method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":API_KEY},body:JSON.stringify({matches,matchesF,playerImages,news:newsList})})
+    const res = await fetch(BIN_URL, {method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":API_KEY},body:JSON.stringify({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')})})
     if(res.ok) setSyncStatus("ok","Voto salvato ✓")
     else setSyncStatus("err","Errore voto")
   } catch(e) { setSyncStatus("err","Errore connessione") }
@@ -984,9 +987,30 @@ var selectedAvatarIdx=0;
 var expandedStoria={};
 
 function getUsers(){return JSON.parse(localStorage.getItem('sac_pro_users')||'{}');}
-function saveUsers(u){localStorage.setItem('sac_pro_users',JSON.stringify(u));}
+function saveUsers(u){
+  localStorage.setItem('sac_pro_users',JSON.stringify(u));
+  _syncPro();
+}
 function getAllData(){return JSON.parse(localStorage.getItem('sac_pro_data')||'{}');}
-function saveAllData(d){localStorage.setItem('sac_pro_data',JSON.stringify(d));}
+function saveAllData(d){
+  localStorage.setItem('sac_pro_data',JSON.stringify(d));
+  _syncPro();
+}
+
+var _syncProTimer=null;
+function _syncPro(){
+  // Debounce: aspetta 1s prima di salvare (evita troppe chiamate)
+  clearTimeout(_syncProTimer);
+  _syncProTimer=setTimeout(function(){
+    var body={
+      matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
+      proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
+      proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')
+    };
+    fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
+    .catch(function(){});
+  },1000);
+}
 function getProSession(){return JSON.parse(localStorage.getItem('sac_pro_session')||'null');}
 function setProSession(u){localStorage.setItem('sac_pro_session',JSON.stringify(u));}
 function clearProSession(){localStorage.removeItem('sac_pro_session');}
@@ -1431,6 +1455,35 @@ function checkSel(b){
   return 'pending';
 }
 
+function resolveMyBets(){
+  // Controlla e paga le scommesse dell'utente corrente
+  // usando i risultati attuali in matches/matchesF (caricati da JSONBin)
+  var d=getMyData(); if(!d||!d.storia||!d.storia.length) return;
+  var changed=false, winners=0;
+  d.storia.forEach(function(bet){
+    if(bet.status!=='pending') return;
+    var allSettled=true, anyLost=false;
+    bet.schedina.forEach(function(b){
+      var res=checkSel(b);
+      if(res==='pending') allSettled=false;
+      if(res==='lose') anyLost=true;
+    });
+    if(anyLost){
+      bet.status='lose';
+      changed=true;
+    } else if(allSettled){
+      bet.status='win';
+      d.tokens=(d.tokens||0)+bet.vincita;
+      changed=true;
+      winners++;
+    }
+  });
+  if(changed){
+    saveMyData(d);
+    if(winners>0) showToast('🏆 Scommessa vinta! +token');
+  }
+}
+
 // ── ADMIN ──
 function openProAdmin(){document.getElementById('proAdminPopup').style.display='flex';renderProAdmin();}
 function closeProAdmin(){document.getElementById('proAdminPopup').style.display='none';}
@@ -1562,6 +1615,7 @@ function renderPronostici(){
     return;
   }
 
+  resolveMyBets();
   var d=getMyData();
   var tokens=d?d.tokens:0;
   var adsLeft=3-getAdsToday();
