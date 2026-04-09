@@ -671,87 +671,120 @@ function renderTable() {
   classifica.innerHTML=html
 }
 
-function getVotes(id) {
-  const {matches} = activeData()
-  const m = matches.find(x => x.id === parseInt(id))
-  return (m && m.pollVotes) ? m.pollVotes : {"1":0,"x":0,"2":0}
-}
-const getUserVote = id => localStorage.getItem('suv_'+id)||null
 
-async function castVote(matchId, choice) {
-  matchId = parseInt(matchId)
-  const prev = getUserVote(matchId)
-  const isRemoving = prev === choice
-  if (isRemoving) localStorage.removeItem('suv_'+matchId)
-  else localStorage.setItem('suv_'+matchId, choice)
-  const arr = activeLeague === "M" ? matches : matchesF
-  const m = arr.find(x => x.id === matchId); if (!m) return
-  if (!m.pollVotes) m.pollVotes = {"1":0,"x":0,"2":0}
-  if (prev) m.pollVotes[prev] = Math.max(0, (m.pollVotes[prev]||0) - 1)
-  if (!isRemoving) m.pollVotes[choice] = (m.pollVotes[choice]||0) + 1
-  const newUv = isRemoving ? null : choice
-  updatePollPill(matchId, m.pollVotes, newUv)
-  if (pollPopup.style.display==='flex') openPoll(matchId, m.a, m.b)
-  setSyncStatus("loading", "Salvataggio voto...")
-  try {
-    const res = await fetch(BIN_URL, {method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":API_KEY},body:JSON.stringify({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')})})
-    if(res.ok) setSyncStatus("ok","Voto salvato ✓")
-    else setSyncStatus("err","Errore voto")
-  } catch(e) { setSyncStatus("err","Errore connessione") }
+// ══════════════════════════════════════
+// SISTEMA SONDAGGI v2
+// ══════════════════════════════════════
+
+// Chiave locale: distingue maschile/femminile e matchId
+function _pollKey(matchId){ return 'poll_'+activeLeague+'_'+matchId; }
+function getUserVote(matchId){ return localStorage.getItem(_pollKey(matchId))||null; }
+function setUserVote(matchId,choice){ localStorage.setItem(_pollKey(matchId),choice); }
+function removeUserVote(matchId){ localStorage.removeItem(_pollKey(matchId)); }
+
+function getVotes(matchId){
+  var arr=activeLeague==='M'?matches:matchesF;
+  var m=arr.find(function(x){return x.id===parseInt(matchId)});
+  return (m&&m.pollVotes)?m.pollVotes:{"1":0,"x":0,"2":0};
 }
 
-function updatePollPill(matchId,votes,uv) {
-  const total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
-  const c=uv==="1"?"#3d8ef0":uv==="x"?"#f5c518":uv==="2"?"#ff4454":null
-  document.querySelectorAll('[data-pollid="'+matchId+'"]').forEach(pill=>{
-    if(uv){pill.innerHTML=`<div style="font-family:'Anton',sans-serif;font-size:16px;color:${c};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`;pill.style.borderColor=c+'44';pill.style.background=c+'10'}
-    else if(total>0){pill.innerHTML=`<div class="score-pill-vs-label">vs</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`;pill.style.borderColor='';pill.style.background=''}
-    else{pill.innerHTML=`<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`;pill.style.borderColor='';pill.style.background=''}
-  })
-}
-
-function openPoll(matchId,teamA,teamB) {
+async function castVote(matchId,choice){
   matchId=parseInt(matchId);
+  var prev=getUserVote(matchId);
+  var isRemoving=(prev===choice);
+
+  // Aggiorna localStorage
+  if(isRemoving) removeUserVote(matchId);
+  else setUserVote(matchId,choice);
+
+  // Aggiorna contatori nel match
+  var arr=activeLeague==='M'?matches:matchesF;
+  var m=arr.find(function(x){return x.id===matchId});
+  if(!m) return;
+  if(!m.pollVotes) m.pollVotes={"1":0,"x":0,"2":0};
+  if(prev) m.pollVotes[prev]=Math.max(0,(m.pollVotes[prev]||0)-1);
+  if(!isRemoving) m.pollVotes[choice]=(m.pollVotes[choice]||0)+1;
+
+  // Ri-renderizza
+  renderMatches();
+  if(document.getElementById('pollPopup').style.display==='flex'){
+    _renderPollPopup(matchId,m.a,m.b,m.pollVotes);
+  }
+
+  // Salva su JSONBin
+  setSyncStatus('loading','Salvataggio voto...');
+  try {
+    var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
+      proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
+      proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')};
+    var res=await fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)});
+    if(res.ok) setSyncStatus('ok','Voto salvato ✓');
+    else setSyncStatus('err','Errore voto');
+  } catch(e){ setSyncStatus('err','Errore connessione'); }
+}
+
+function _renderPollPopup(matchId,teamA,teamB,votes){
   var uv=getUserVote(matchId);
-  function mkBtn(v,k,label,color){
-    var active=uv===k;
-    var total=(v["1"]||0)+(v["x"]||0)+(v["2"]||0);
-    var p=total===0?33:Math.round(((v[k]||0)/total)*100);
-    var el=document.createElement('div');
-    el.className='poll-opt';
-    el.style.cssText='border-color:'+(active?color+'55':'var(--border)')+';background:'+(active?color+'12':'transparent');
+  var sheet=document.getElementById('pollSheet');
+  if(!sheet) return;
+  var total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0);
+
+  sheet.innerHTML='';
+
+  // Handle
+  var hd=document.createElement('div'); hd.className='sheet-handle'; sheet.appendChild(hd);
+
+  // Titolo
+  var t1=document.createElement('div'); t1.className='sheet-title';
+  t1.style.cssText='font-size:14px;margin-bottom:4px'; t1.textContent=teamA; sheet.appendChild(t1);
+  var t2=document.createElement('div');
+  t2.style.cssText='text-align:center;color:var(--muted);font-size:11px;margin-bottom:14px';
+  t2.textContent='vs '+teamB; sheet.appendChild(t2);
+
+  // Label
+  var lbl=document.createElement('div');
+  lbl.style.cssText='font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px';
+  lbl.innerHTML='Chi vince?'+(total>0?' <span style="color:var(--gold);margin-left:6px">'+total+' voti</span>':'');
+  sheet.appendChild(lbl);
+
+  // Grid
+  var grid=document.createElement('div'); grid.className='poll-3grid'; sheet.appendChild(grid);
+  [["1","1","#3d8ef0"],["x","X","#f5c518"],["2","2","#ff4454"]].forEach(function(arr){
+    var k=arr[0],label=arr[1],color=arr[2];
+    var active=(uv===k);
+    var p=total===0?33:Math.round(((votes[k]||0)/total)*100);
+    var el=document.createElement('div'); el.className='poll-opt';
+    el.style.borderColor=active?color+'55':'var(--border)';
+    el.style.background=active?color+'12':'transparent';
     el.innerHTML='<div class="poll-bar-fill" style="width:'+p+'%;background:'+color+'16"></div>'
-      +'<div class="poll-opt-inner">'
-      +'<span class="poll-choice" style="color:'+(active?color:'var(--text)')+'">'+label+'</span>'
-      +'<span class="poll-pct" style="color:'+(active?color:'var(--muted)')+'">'+p+'%</span>'
-      +'</div>';
-    el.addEventListener('click',function(){castVote(matchId,k);});
-    return el;
+      +'<div class="poll-opt-inner"><span class="poll-choice" style="color:'+(active?color:'var(--text)')+'">'+label+'</span>'
+      +'<span class="poll-pct" style="color:'+(active?color:'var(--muted)')+'">'+p+'%</span></div>';
+    el.addEventListener('click',function(){ castVote(matchId,k); });
+    grid.appendChild(el);
+  });
+
+  // Nota toggle
+  if(uv){
+    var note=document.createElement('div');
+    note.style.cssText='text-align:center;font-size:11px;color:var(--muted);margin-top:10px';
+    note.textContent='Riclicca per togliere il voto'; sheet.appendChild(note);
   }
-  function renderPollSheet(v){
-    var total=(v["1"]||0)+(v["x"]||0)+(v["2"]||0);
-    var sheet=document.getElementById('pollSheet');
-    // Svuota e ricostruisci
-    sheet.innerHTML='';
-    var hd=document.createElement('div');hd.className='sheet-handle';sheet.appendChild(hd);
-    var t1=document.createElement('div');t1.className='sheet-title';t1.style.cssText='font-size:14px;margin-bottom:4px';t1.textContent=teamA;sheet.appendChild(t1);
-    var t2=document.createElement('div');t2.style.cssText='text-align:center;color:var(--muted);font-size:11px;margin-bottom:14px';t2.textContent='vs '+teamB;sheet.appendChild(t2);
-    var lbl=document.createElement('div');lbl.style.cssText='font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px';
-    lbl.innerHTML='Chi vince?'+(total>0?' <span style="color:var(--gold);margin-left:6px">'+total+' voti</span>':'');
-    sheet.appendChild(lbl);
-    var grid=document.createElement('div');grid.className='poll-3grid';
-    grid.appendChild(mkBtn(v,"1","1","#3d8ef0"));
-    grid.appendChild(mkBtn(v,"x","X","#f5c518"));
-    grid.appendChild(mkBtn(v,"2","2","#ff4454"));
-    sheet.appendChild(grid);
-    if(uv){var note=document.createElement('div');note.style.cssText='text-align:center;font-size:11px;color:var(--muted);margin-top:10px';note.textContent='Riclicca per togliere il voto';sheet.appendChild(note);}
-    var cl=document.createElement('button');cl.className='btn btn-ghost';cl.style.cssText='width:100%;justify-content:center;margin-top:14px';cl.textContent='Chiudi';
-    cl.addEventListener('click',function(){pollPopup.style.display='none';});
-    sheet.appendChild(cl);
-  }
-  renderPollSheet(getVotes(matchId));
-  pollPopup.style.display='flex';
-  // Aggiorna live dal server
+
+  // Chiudi
+  var cl=document.createElement('button'); cl.className='btn btn-ghost';
+  cl.style.cssText='width:100%;justify-content:center;margin-top:14px';
+  cl.textContent='Chiudi';
+  cl.addEventListener('click',function(){ document.getElementById('pollPopup').style.display='none'; });
+  sheet.appendChild(cl);
+}
+
+function openPoll(matchId,teamA,teamB){
+  matchId=parseInt(matchId);
+  var votes=getVotes(matchId);
+  _renderPollPopup(matchId,teamA,teamB,votes);
+  document.getElementById('pollPopup').style.display='flex';
+
+  // Aggiorna voti live da JSONBin
   fetch(BIN_URL+'/latest',{headers:{'X-Master-Key':API_KEY}})
   .then(function(r){return r.json();})
   .then(function(data){
@@ -759,19 +792,48 @@ function openPoll(matchId,teamA,teamB) {
     if(!arr) return;
     var mt=arr.find(function(x){return x.id===matchId;});
     if(mt&&mt.pollVotes){
+      // Aggiorna match locale
       var la=activeLeague==='M'?matches:matchesF;
       var lm=la.find(function(x){return x.id===matchId;});
       if(lm) lm.pollVotes=mt.pollVotes;
-      if(pollPopup.style.display==='flex') renderPollSheet(mt.pollVotes);
+      // Aggiorna popup se ancora aperto
+      if(document.getElementById('pollPopup').style.display==='flex'){
+        _renderPollPopup(matchId,teamA,teamB,mt.pollVotes);
+      }
     }
   }).catch(function(){});
+}
+
+function updatePollPill(matchId,votes,uv){
+  var total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0);
+  var c=uv==="1"?"#3d8ef0":uv==="x"?"#f5c518":uv==="2"?"#ff4454":null;
+  document.querySelectorAll('[data-pollid="'+matchId+'"]').forEach(function(pill){
+    if(uv){
+      pill.innerHTML='<div style="font-family:Anton,sans-serif;font-size:16px;color:'+c+';letter-spacing:1px;line-height:1">'+uv.toUpperCase()+'</div><div style="font-size:9px;color:var(--muted);margin-top:1px">'+total+'v</div>';
+      pill.style.borderColor=c+'44'; pill.style.background=c+'10';
+    } else if(total>0){
+      pill.innerHTML='<div class="score-pill-vs-label">vs</div><div style="font-size:9px;color:var(--muted);margin-top:1px">'+total+'v</div>';
+      pill.style.borderColor=''; pill.style.background='';
+    } else {
+      pill.innerHTML='<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>';
+      pill.style.borderColor=''; pill.style.background='';
+    }
+  });
+}
+
+
+function _openPoll(matchId){
+  var arr=activeLeague==='M'?matches:matchesF;
+  var m=arr.find(function(x){return x.id===parseInt(matchId)});
+  if(!m) return;
+  openPoll(matchId,m.a,m.b);
 }
 
 function matchRowHTML(x) {
   const votes=getVotes(x.id),uv=getUserVote(x.id),total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
   if(x.played){return `<div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill"><div class="score-pill-num">${x.g1}-${x.g2}</div></div><div class="match-team-name away">${x.b}</div></div>${x.mvp?`<div style="padding:0 12px 8px"><div class="mvp-pill">⭐ ${x.mvp}</div></div>`:''}`}
   const c=uv==="1"?"#3d8ef0":uv==="x"?"#f5c518":uv==="2"?"#ff4454":null
-  return `<div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill score-pill-vs" data-pollid="${x.id}" onclick="event.stopPropagation();openPoll(${x.id},'${x.a}','${x.b}')" style="${uv?'border-color:'+c+'44;background:'+c+'10':''}">
+  return `<div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill score-pill-vs" data-pollid="${x.id}" onclick="event.stopPropagation();_openPoll(${x.id})" style="${uv?'border-color:'+c+'44;background:'+c+'10':''}">
     ${uv?`<div style="font-family:'Anton',sans-serif;font-size:16px;color:${c};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`:`<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`}
   </div><div class="match-team-name away">${x.b}</div></div>`
 }
@@ -1390,8 +1452,16 @@ var WHEEL_PRIZES=[{tokens:10,label:'+10',color:'#3d8ef0',weight:40},{tokens:15,l
 var WHEEL_SLOTS=[];WHEEL_PRIZES.forEach(function(p){for(var i=0;i<p.weight;i++) WHEEL_SLOTS.push(p)});
 var wheelSpinning=false,wheelAngle=0;
 
-function getWheelSpunToday(){var sess=getProSession();if(!sess) return true;return localStorage.getItem('sac_wheel_'+sess.username+'_'+new Date().toDateString())==='1';}
-function markWheelSpun(){var sess=getProSession();if(!sess) return;localStorage.setItem('sac_wheel_'+sess.username+'_'+new Date().toDateString(),'1');}
+function getWheelSpunToday(){
+  var d=getMyData();if(!d) return true;
+  return d.lastWheel===new Date().toDateString();
+}
+function markWheelSpun(){
+  var d=getMyData();if(!d) return;
+  d.lastWheel=new Date().toDateString();
+  saveMyData(d);
+  _syncProNow(); // salva subito su JSONBin
+}
 function getDailyPrizeIdx(){var sess=getProSession();if(!sess) return 0;var h=0,str=sess.username+new Date().toDateString();for(var i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h|=0;}return Math.abs(h)%WHEEL_PRIZES.length;}
 
 function drawWheel(angle){
