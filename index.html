@@ -318,6 +318,14 @@ select option{background:var(--s2)}
 .pro-account-user{font-size:12px;color:var(--blue);margin-top:3px}
 .pro-account-tokens{font-family:'Anton',sans-serif;font-size:32px;color:var(--gold);margin-top:10px}
 </style>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SNJPZ7EW5F"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-SNJPZ7EW5F');
+</script>
 </head>
 <body>
 <div id="splash">
@@ -526,13 +534,29 @@ async function binLoad() {
     newsList = data.news||[]
     // Carica dati pronostici: MERGE (locale + JSONBin, JSONBin vince per altri utenti)
     if(data.proUsers){
+      // JSONBin vince per credenziali - aggiungi solo utenti locali non ancora su server
       var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
-      var mergedU=Object.assign({},data.proUsers,localU);
+      var mergedU=Object.assign({},localU,data.proUsers); // JSONBin vince
       localStorage.setItem('sac_pro_users',JSON.stringify(mergedU));
     }
     if(data.proData){
+      // JSONBin è la fonte di verità
+      // Per l'utente corrente: prendi il dato con più token (protezione da race condition)
       var localD=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
-      var mergedD=Object.assign({},data.proData,localD);
+      var serverD=data.proData;
+      var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
+      var mergedD=Object.assign({},localD,serverD); // JSONBin vince su tutti
+      // Eccezione: se l'utente corrente ha dati locali PIÙ AGGIORNATI (più token o più scommesse)
+      if(sess&&sess.username&&localD[sess.username]&&serverD[sess.username]){
+        var loc=localD[sess.username],srv=serverD[sess.username];
+        // Prendi il dato locale se ha più token o storia più lunga
+        if((loc.tokens||0)>(srv.tokens||0)||(loc.storia||[]).length>(srv.storia||[]).length){
+          mergedD[sess.username]=loc;
+        }
+      } else if(sess&&sess.username&&localD[sess.username]&&!serverD[sess.username]){
+        // Utente registrato localmente ma non ancora su server
+        mergedD[sess.username]=localD[sess.username];
+      }
       localStorage.setItem('sac_pro_data',JSON.stringify(mergedD));
     }
     setSyncStatus("ok","Sincronizzato ✓")
@@ -678,13 +702,60 @@ function updatePollPill(matchId,votes,uv) {
 }
 
 function openPoll(matchId,teamA,teamB) {
-  matchId=parseInt(matchId)
-  const votes=getVotes(matchId),uv=getUserVote(matchId)
-  const total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
-  const pct=k=>total===0?33:Math.round(((votes[k]||0)/total)*100)
-  const btn=(k,label,color)=>{const active=uv===k,p=pct(k);return `<div class="poll-opt" onclick="castVote(${matchId},'${k}')" style="border-color:${active?color+'55':'var(--border)'};background:${active?color+'12':'transparent'}"><div class="poll-bar-fill" style="width:${p}%;background:${color}16"></div><div class="poll-opt-inner"><span class="poll-choice" style="color:${active?color:'var(--text)'}">${label}</span><span class="poll-pct" style="color:${active?color:'var(--muted)'}">${p}%</span></div></div>`}
-  pollSheet.innerHTML=`<div class="sheet-handle"></div><div class="sheet-title" style="font-size:14px;margin-bottom:4px">${teamA}</div><div style="text-align:center;color:var(--muted);font-size:11px;margin-bottom:14px">vs ${teamB}</div><div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Chi vince?${total>0?` <span style="color:var(--gold);margin-left:6px">${total} voti</span>`:''}</div><div class="poll-3grid">${btn("1","1","#3d8ef0")}${btn("x","X","#f5c518")}${btn("2","2","#ff4454")}</div>${uv?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:10px">Riclicca la tua scelta per togliere il voto</div>`:''}<button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:14px" onclick="pollPopup.style.display='none'">Chiudi</button>`
-  pollPopup.style.display='flex'
+  matchId=parseInt(matchId);
+  var uv=getUserVote(matchId);
+  function mkBtn(v,k,label,color){
+    var active=uv===k;
+    var total=(v["1"]||0)+(v["x"]||0)+(v["2"]||0);
+    var p=total===0?33:Math.round(((v[k]||0)/total)*100);
+    var el=document.createElement('div');
+    el.className='poll-opt';
+    el.style.cssText='border-color:'+(active?color+'55':'var(--border)')+';background:'+(active?color+'12':'transparent');
+    el.innerHTML='<div class="poll-bar-fill" style="width:'+p+'%;background:'+color+'16"></div>'
+      +'<div class="poll-opt-inner">'
+      +'<span class="poll-choice" style="color:'+(active?color:'var(--text)')+'">'+label+'</span>'
+      +'<span class="poll-pct" style="color:'+(active?color:'var(--muted)')+'">'+p+'%</span>'
+      +'</div>';
+    el.addEventListener('click',function(){castVote(matchId,k);});
+    return el;
+  }
+  function renderPollSheet(v){
+    var total=(v["1"]||0)+(v["x"]||0)+(v["2"]||0);
+    var sheet=document.getElementById('pollSheet');
+    // Svuota e ricostruisci
+    sheet.innerHTML='';
+    var hd=document.createElement('div');hd.className='sheet-handle';sheet.appendChild(hd);
+    var t1=document.createElement('div');t1.className='sheet-title';t1.style.cssText='font-size:14px;margin-bottom:4px';t1.textContent=teamA;sheet.appendChild(t1);
+    var t2=document.createElement('div');t2.style.cssText='text-align:center;color:var(--muted);font-size:11px;margin-bottom:14px';t2.textContent='vs '+teamB;sheet.appendChild(t2);
+    var lbl=document.createElement('div');lbl.style.cssText='font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px';
+    lbl.innerHTML='Chi vince?'+(total>0?' <span style="color:var(--gold);margin-left:6px">'+total+' voti</span>':'');
+    sheet.appendChild(lbl);
+    var grid=document.createElement('div');grid.className='poll-3grid';
+    grid.appendChild(mkBtn(v,"1","1","#3d8ef0"));
+    grid.appendChild(mkBtn(v,"x","X","#f5c518"));
+    grid.appendChild(mkBtn(v,"2","2","#ff4454"));
+    sheet.appendChild(grid);
+    if(uv){var note=document.createElement('div');note.style.cssText='text-align:center;font-size:11px;color:var(--muted);margin-top:10px';note.textContent='Riclicca per togliere il voto';sheet.appendChild(note);}
+    var cl=document.createElement('button');cl.className='btn btn-ghost';cl.style.cssText='width:100%;justify-content:center;margin-top:14px';cl.textContent='Chiudi';
+    cl.addEventListener('click',function(){pollPopup.style.display='none';});
+    sheet.appendChild(cl);
+  }
+  renderPollSheet(getVotes(matchId));
+  pollPopup.style.display='flex';
+  // Aggiorna live dal server
+  fetch(BIN_URL+'/latest',{headers:{'X-Master-Key':API_KEY}})
+  .then(function(r){return r.json();})
+  .then(function(data){
+    var arr=activeLeague==='M'?data.record.matches:data.record.matchesF;
+    if(!arr) return;
+    var mt=arr.find(function(x){return x.id===matchId;});
+    if(mt&&mt.pollVotes){
+      var la=activeLeague==='M'?matches:matchesF;
+      var lm=la.find(function(x){return x.id===matchId;});
+      if(lm) lm.pollVotes=mt.pollVotes;
+      if(pollPopup.style.display==='flex') renderPollSheet(mt.pollVotes);
+    }
+  }).catch(function(){});
 }
 
 function matchRowHTML(x) {
