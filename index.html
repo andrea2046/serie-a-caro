@@ -1837,7 +1837,11 @@ function updateWheelTimer(){
   var h=Math.floor(diff/3600000);
   var m=Math.floor((diff%3600000)/60000);
   var s=Math.floor((diff%60000)/1000);
-  el.textContent='⏳ Disponibile tra: '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  var timeStr=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  el.textContent='⏳ Disponibile tra: '+timeStr;
+  // Aggiorna anche il bottone nella pagina principale
+  var btnSub=document.getElementById('wheelBtnTimer');
+  if(btnSub) btnSub.textContent=timeStr+' ⏳';
 }
 function openWheelPopup(){
   document.getElementById('wheelPopup').style.display='flex';wheelAngle=0;
@@ -2192,10 +2196,27 @@ function renderPronostici(){
 
   // Actions - ruota e ads grandi
   h+='<div class="pro-actions-row">';
+  // Calcola timer per il bottone ruota
+  var _wTimerTxt='';
+  if(!wheelReady){
+    var _wLast=null;
+    var _wd=getMyData();
+    if(_wd&&_wd.lastWheel){
+      _wLast=typeof _wd.lastWheel==='number'?_wd.lastWheel:new Date(_wd.lastWheel).getTime();
+    }
+    if(_wLast){
+      var _wDiff=86400000-(Date.now()-_wLast);
+      if(_wDiff>0){
+        var _wh=Math.floor(_wDiff/3600000);
+        var _wm=Math.floor((_wDiff%3600000)/60000);
+        _wTimerTxt=String(_wh).padStart(2,'0')+':'+String(_wm).padStart(2,'0')+' ⏳';
+      }
+    }
+  }
   h+='<button class="pro-act-btn pro-act-wheel" onclick="openWheelPopup()"'+(wheelReady?'':' disabled')+'>';
   h+='<span class="pro-act-btn-icon">🎡</span>';
   h+='<span class="pro-act-btn-lbl">Ruota Fortuna</span>';
-  h+='<span class="pro-act-btn-sub">'+(wheelReady?'Disponibile!':'Già girata ✓')+'</span>';
+  h+='<span class="pro-act-btn-sub" id="wheelBtnTimer">'+(wheelReady?'Disponibile!':(_wTimerTxt||'Già girata ✓'))+'</span>';
   h+='</button>';
   h+='<button class="pro-act-btn pro-act-ads" disabled style="opacity:.5;cursor:not-allowed">';
   h+='<span class="pro-act-btn-icon">📺</span>';
