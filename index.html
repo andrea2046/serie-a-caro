@@ -1841,13 +1841,26 @@ function updateWheelTimer(){
 }
 function openWheelPopup(){
   document.getElementById('wheelPopup').style.display='flex';wheelAngle=0;
-  document.getElementById('wheelResult').textContent='';document.getElementById('wheelResultSub').textContent='';
-  var spun=getWheelSpunToday(),btn2=document.getElementById('wheelSpinBtn');
-  btn2.disabled=spun;btn2.textContent=spun?'Già girata oggi!':'GIRA!';drawWheel(0);
-  // Avvia timer countdown
-  updateWheelTimer();
-  clearInterval(_wheelTimerInterval);
-  _wheelTimerInterval=setInterval(updateWheelTimer,1000);
+  document.getElementById('wheelResult').textContent='';
+  document.getElementById('wheelResultSub').textContent='';
+  drawWheel(0);
+  // Aggiorna dati dal server poi mostra timer
+  refreshPro().then(function(){
+    var spun=getWheelSpunToday();
+    var btn2=document.getElementById('wheelSpinBtn');
+    if(btn2){btn2.disabled=spun;btn2.textContent=spun?'Già girata oggi!':'GIRA!';}
+    clearInterval(_wheelTimerInterval);
+    updateWheelTimer();
+    _wheelTimerInterval=setInterval(updateWheelTimer,1000);
+  }).catch(function(){
+    // Fallback dati locali
+    var spun=getWheelSpunToday();
+    var btn2=document.getElementById('wheelSpinBtn');
+    if(btn2){btn2.disabled=spun;btn2.textContent=spun?'Già girata oggi!':'GIRA!';}
+    clearInterval(_wheelTimerInterval);
+    updateWheelTimer();
+    _wheelTimerInterval=setInterval(updateWheelTimer,1000);
+  });
 }
 async function spinWheel(){
   if(wheelSpinning) return;
