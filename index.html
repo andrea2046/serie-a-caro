@@ -833,13 +833,20 @@ function _openPoll(matchId){
   openPoll(matchId,m.a,m.b);
 }
 
-function matchRowHTML(x) {
+function matchRowHTML(x, isF) {
+  var _isF=isF||false;
   const votes=getVotes(x.id),uv=getUserVote(x.id),total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
   if(x.played){return `<div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill"><div class="score-pill-num">${x.g1}-${x.g2}</div></div><div class="match-team-name away">${x.b}</div></div>${x.mvp?`<div style="padding:0 12px 8px"><div class="mvp-pill">⭐ ${x.mvp}</div></div>`:''}`}
   const c=uv==="1"?"#3d8ef0":uv==="x"?"#f5c518":uv==="2"?"#ff4454":null
-  return `<div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill score-pill-vs" data-pollid="${x.id}" onclick="event.stopPropagation();_openPoll(${x.id})" style="${uv?'border-color:'+c+'44;background:'+c+'10':''}">
+  // Badge stato scommesse (visibile a tutti)
+  var statusBar=x.locked
+    ?(admin
+      ?`<div style="text-align:center;padding:3px 0 6px;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</span><button onclick="event.stopPropagation();toggleMatchLock(${x.id},${_isF})" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:var(--red);padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer">Sblocca</button></div>`
+      :`<div style="text-align:center;padding:3px 0 6px;font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</div>`)
+    :(admin?`<div style="text-align:center;padding:3px 0 6px"><button onclick="event.stopPropagation();toggleMatchLock(${x.id},${_isF})" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px">🔓 Blocca scommesse</button></div>`:'');
+  return `<div><div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill score-pill-vs" data-pollid="${x.id}" onclick="event.stopPropagation();_openPoll(${x.id})" style="${uv?'border-color:'+c+'44;background:'+c+'10':''}">
     ${uv?`<div style="font-family:'Anton',sans-serif;font-size:16px;color:${c};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`:`<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`}
-  </div><div class="match-team-name away">${x.b}</div></div>`
+  </div><div class="match-team-name away">${x.b}</div></div>${statusBar}</div>`
 }
 
 function toggleMore(gid) {
@@ -948,7 +955,7 @@ async function uploadPhoto(e,name) {
 async function saveMatch() {
   const {matches}=activeData(), m=matches.find(x=>x.id===editMatch)
   m.g1=parseInt(g1.value)||0; m.g2=parseInt(g2.value)||0
-  m.mvp=mvp.value.trim(); m.played=true
+  m.mvp=mvp.value.trim(); m.played=true; m.locked=false // rimuovi lock dopo risultato
   m.scorersA=[...tempScorersA]; m.scorersB=[...tempScorersB]
   rebuildScorers(); matchPop.style.display='none'
   renderMatches(); renderTable(); renderScorers()
@@ -956,6 +963,16 @@ async function saveMatch() {
   const ok=await binSave()
   if(ok) showToast("✅ Salvato!")
   else showToast("Errore salvataggio!","err")
+}
+
+function toggleMatchLock(matchId, isF){
+  var arr=isF?matchesF:matches;
+  var m=arr.find(function(x){return x.id===parseInt(matchId)});
+  if(!m) return;
+  m.locked=!m.locked;
+  renderMatches();
+  binSave();
+  showToast(m.locked?'🔒 Scommesse bloccate':'🔓 Scommesse aperte');
 }
 
 function deleteResult() {
@@ -1453,6 +1470,15 @@ function piazzaScommessa(){
   if(!proSchedina.length){showToast('Schedina vuota!','err');return;}
   if(proPuntata<1||isNaN(proPuntata)){showToast('Puntata minima 1 token!','err');return;}
   if(proPuntata>d.tokens){showToast('Token insufficienti!','err');return;}
+  // Controlla che nessun match nella schedina sia bloccato
+  for(var _ci=0;_ci<proSchedina.length;_ci++){
+    var _cb=proSchedina[_ci];
+    var _isF=String(_cb.matchId).charAt(0)==='f';
+    var _rid=_isF?parseInt(String(_cb.matchId).slice(1)):parseInt(_cb.matchId);
+    var _ml=_isF?matchesF:matches;
+    var _cm=_ml.find(function(x){return x.id===_rid});
+    if(_cm&&_cm.locked){showToast('⛔ '+(_cm.a)+' vs '+(_cm.b)+': scommesse chiuse!','err');return;}
+  }
   var qt=proQT();
   var vincita=Math.round(proPuntata*qt);
   d.tokens-=proPuntata;
@@ -2027,7 +2053,24 @@ function renderPronostici(){
   // STORIA
   if(proActiveTab==='storia'){
     var _st=d&&d.storia?d.storia:[];
+    var _wins=_st.filter(function(s){return s.status==='win'}).length;
+    var _losses=_st.filter(function(s){return s.status==='lose'}).length;
+    var _pending=_st.filter(function(s){return s.status==='pending'}).length;
+    var _totWon=_st.filter(function(s){return s.status==='win'}).reduce(function(a,s){return a+s.vincita},0);
+    var _totLost=_st.filter(function(s){return s.status==='lose'}).reduce(function(a,s){return a+s.puntata},0);
+    var _profit=_totWon-_totLost;
     h+='<div class="card"><div class="card-head"><div class="group-badge">📜</div><div class="card-title">Le mie scommesse</div></div>';
+    if(_st.length){
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)">';
+      h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--green)">'+_wins+'</div><div style="font-size:10px;color:var(--muted)">Vinte</div></div>';
+      h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--red)">'+_losses+'</div><div style="font-size:10px;color:var(--muted)">Perse</div></div>';
+      h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--gold)">'+_pending+'</div><div style="font-size:10px;color:var(--muted)">In corso</div></div>';
+      h+='</div>';
+      h+='<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">';
+      h+='<span style="font-size:11px;color:var(--muted)">Profitto netto</span>';
+      h+='<span style="font-size:14px;font-weight:700;color:'+(_profit>=0?'var(--green)':'var(--red)')+'">'+(_profit>=0?'+':'')+_profit+' 🪙</span>';
+      h+='</div>';
+    }
     if(!_st.length) h+='<div style="padding:20px;text-align:center;color:var(--muted)">Nessuna scommessa.</div>';
     for(var _xi=0;_xi<_st.length;_xi++){
       var _s=_st[_xi];
