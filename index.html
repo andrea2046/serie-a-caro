@@ -1805,11 +1805,31 @@ function drawWheel(angle){
 }
 
 var _wheelTimerInterval=null;
+var _wheelBtnTimerInterval=null;
+
+function updateWheelTimerBtn(){
+  var btnSub=document.getElementById('wheelBtnTimer');
+  if(!btnSub) return; // bottone non visibile, skip
+  var d=getMyData();
+  if(!d||!d.lastWheel){return;}
+  var last=typeof d.lastWheel==='number'?d.lastWheel:new Date().setHours(24,0,0,0);
+  var diff=86400000-(Date.now()-last);
+  if(diff<=0){
+    btnSub.textContent='Disponibile!';
+    var btn=document.getElementById('wheelBtnTimer');
+    clearInterval(_wheelTimerInterval);_wheelTimerInterval=null;
+    return;
+  }
+  var h=Math.floor(diff/3600000);
+  var m=Math.floor((diff%3600000)/60000);
+  var s=Math.floor((diff%60000)/1000);
+  btnSub.textContent=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' ⏳';
+}
 function updateWheelTimer(){
   var el=document.getElementById('wheelTimer');
   if(!el){
-    // Elemento non trovato - popup chiuso, ferma timer
-    clearInterval(_wheelTimerInterval);
+    // Popup chiuso - non fermare l'intervallo (serve per il bottone)
+    updateWheelTimerBtn();
     return;
   }
   var d=getMyData();
@@ -1838,8 +1858,7 @@ function updateWheelTimer(){
   var s=Math.floor((diff%60000)/1000);
   var timeStr=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   el.textContent='⏳ '+timeStr;
-  var btnSub=document.getElementById('wheelBtnTimer');
-  if(btnSub) btnSub.textContent=timeStr+' ⏳';
+  updateWheelTimerBtn();
 }
 function openWheelPopup(){
   document.getElementById('wheelPopup').style.display='flex';wheelAngle=0;
@@ -2129,6 +2148,11 @@ function renderProAdmin(){
 function renderPronostici(){
   var el=document.getElementById('pronostici');
   if(!el||!el.classList.contains('active')) return;
+  // Avvia timer ruota se non già attivo
+  if(!_wheelTimerInterval && getWheelSpunToday()){
+    updateWheelTimerBtn();
+    _wheelTimerInterval=setInterval(updateWheelTimerBtn,1000);
+  }
   var sess=getProSession();
 
     if(!sess){
@@ -2215,6 +2239,14 @@ function renderPronostici(){
   h+='<span class="pro-act-btn-icon">🎡</span>';
   h+='<span class="pro-act-btn-lbl">Ruota Fortuna</span>';
   h+='<span class="pro-act-btn-sub" id="wheelBtnTimer">'+(wheelReady?'Disponibile!':(_wTimerTxt||'Già girata ✓'))+'</span>';
+  // Avvia timer bottone se non ancora disponibile
+  if(!wheelReady){
+    clearInterval(_wheelBtnTimerInterval);
+    _wheelBtnTimerInterval=setInterval(updateWheelTimerBtn,1000);
+  } else {
+    clearInterval(_wheelBtnTimerInterval);
+    _wheelBtnTimerInterval=null;
+  }
   h+='</button>';
   h+='<button class="pro-act-btn pro-act-ads" disabled style="opacity:.5;cursor:not-allowed">';
   h+='<span class="pro-act-btn-icon">📺</span>';
