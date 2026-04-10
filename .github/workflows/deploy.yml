@@ -12,8 +12,8 @@ jobs:
 
       - name: Inject secrets into HTML
         run: |
-          sed -i "s|__JSONBIN_API_KEY__|${{ secrets.JSONBIN_API_KEY }}|g" serie_a_caro.html
-          sed -i "s|__JSONBIN_BIN_ID__|${{ secrets.JSONBIN_BIN_ID }}|g" serie_a_caro.html
+          sed -i "s|__JSONBIN_API_KEY__|${{ secrets.JSONBIN_API_KEY }}|g" index.html
+          sed -i "s|__JSONBIN_BIN_ID__|${{ secrets.JSONBIN_BIN_ID }}|g" index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
