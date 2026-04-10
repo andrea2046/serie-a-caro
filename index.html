@@ -479,8 +479,8 @@ select option{background:var(--s2)}
 // ══════════════════════════════════════
 // COSTANTI
 // ══════════════════════════════════════
-const BIN_ID = "69d681f3856a6821891087c0"
-const API_KEY = "$2a$10$x.dSFPS14HXK3N5haPJtm.NxD/i2mFa0.60RKp92TL6nihvWQc06a"
+const BIN_ID = "__JSONBIN_BIN_ID__"
+const API_KEY = "__JSONBIN_API_KEY__"
 const BIN_URL = "https://api.jsonbin.io/v3/b/" + BIN_ID
 const PASSWORD_HASH = "5d28a834728f3baeb111d317aa4606f5bb82c0ce762b534ec91c23c0ed54031a"
 
@@ -1341,10 +1341,14 @@ function calcQ(a,b,def,mList){
   var pX=clamp(1-(p1+p2),0.28,0.40);
   var tot=p1+pX+p2;
   p1=(p1/tot)*MARGINE; pX=(pX/tot)*MARGINE; p2=(p2/tot)*MARGINE;
-  var q1=r2(Math.min(5.00,1/p1));
+  // Cap dinamico: cresce col gap tra le squadre
+  // F1vsF2(gap 35) -> cap 3.50, F1vsF5(gap 92) -> cap 6.00
+  var rawGap=Math.abs(rcA-rcB);
+  var dynCap=r2(clamp(2.0+(rawGap/92)*4.0, 2.0, 6.0));
+  var q1=r2(Math.min(dynCap,1/p1));
   var qX=r2(Math.min(3.20,1/pX));
-  var q2=r2(Math.min(5.00,1/p2));
-  if(q2<=qX) q2=r2(Math.min(5.00,qX+0.30));
+  var q2=r2(Math.min(dynCap,1/p2));
+  if(q2<=qX) q2=r2(Math.min(dynCap,qX+0.30));
   if(Math.abs(diff)<0.03) q2=q1;
 
   // ── EXPECTED GOALS AVANZATO ──
@@ -1832,7 +1836,8 @@ function renderProAdmin(){
       h+='</div>';
     }
   }
-  el.innerHTML=h;
+  h+='<button onclick="proAdminLogged=false;renderProAdmin()" style="width:100%;margin-top:14px;padding:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#ef4444;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer;letter-spacing:1px">🔓 Logout Admin</button>';
+    el.innerHTML=h;
 }
 
 // ── MAIN RENDER ──
