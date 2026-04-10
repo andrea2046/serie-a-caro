@@ -1844,23 +1844,30 @@ function openWheelPopup(){
   document.getElementById('wheelResult').textContent='';
   document.getElementById('wheelResultSub').textContent='';
   drawWheel(0);
-  // Aggiorna dati dal server poi mostra timer
-  refreshPro().then(function(){
-    var spun=getWheelSpunToday();
-    var btn2=document.getElementById('wheelSpinBtn');
-    if(btn2){btn2.disabled=spun;btn2.textContent=spun?'Già girata oggi!':'GIRA!';}
-    clearInterval(_wheelTimerInterval);
-    updateWheelTimer();
-    _wheelTimerInterval=setInterval(updateWheelTimer,1000);
-  }).catch(function(){
-    // Fallback dati locali
-    var spun=getWheelSpunToday();
-    var btn2=document.getElementById('wheelSpinBtn');
-    if(btn2){btn2.disabled=spun;btn2.textContent=spun?'Già girata oggi!':'GIRA!';}
-    clearInterval(_wheelTimerInterval);
-    updateWheelTimer();
-    _wheelTimerInterval=setInterval(updateWheelTimer,1000);
-  });
+  // Mostra subito con dati locali
+  var spun=getWheelSpunToday();
+  var btn2=document.getElementById('wheelSpinBtn');
+  if(btn2){btn2.disabled=spun;btn2.textContent=spun?'Già girata oggi!':'GIRA!';}
+  clearInterval(_wheelTimerInterval);
+  updateWheelTimer();
+  _wheelTimerInterval=setInterval(updateWheelTimer,1000);
+  // Aggiorna solo lastWheel dal server in background (senza re-render)
+  jbGet().then(function(r){return r.json();}).then(function(data){
+    var sess=getProSession();
+    if(!sess||!data.record||!data.record.proData) return;
+    var srv=data.record.proData[sess.username];
+    if(!srv||!srv.lastWheel) return;
+    var d=getMyData();
+    if(d&&!d.lastWheel){
+      d.lastWheel=srv.lastWheel;
+      saveMyData(d);
+      // Aggiorna timer e bottone
+      var spun2=getWheelSpunToday();
+      var b=document.getElementById('wheelSpinBtn');
+      if(b){b.disabled=spun2;b.textContent=spun2?'Già girata oggi!':'GIRA!';}
+      updateWheelTimer();
+    }
+  }).catch(function(){});
 }
 async function spinWheel(){
   if(wheelSpinning) return;
