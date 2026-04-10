@@ -1869,39 +1869,22 @@ function openWheelPopup(){
   document.getElementById('wheelResult').textContent='';
   document.getElementById('wheelResultSub').textContent='';
   drawWheel(0);
-  // Mostra subito con dati locali
+  // Mostra subito con dati locali - NESSUNA fetch bloccante
   var spun=getWheelSpunToday();
   var btn2=document.getElementById('wheelSpinBtn');
   if(btn2){btn2.disabled=spun;btn2.textContent=spun?'Già girata oggi!':'GIRA!';}
   clearInterval(_wheelTimerInterval);
   updateWheelTimer();
   _wheelTimerInterval=setInterval(updateWheelTimer,1000);
-  // Aggiorna solo lastWheel dal server in background (senza re-render)
-  jbGet().then(function(r){return r.json();}).then(function(data){
-    var sess=getProSession();
-    if(!sess||!data.record||!data.record.proData) return;
-    var srv=data.record.proData[sess.username];
-    if(!srv||!srv.lastWheel) return;
-    var d=getMyData();
-    if(d&&!d.lastWheel){
-      d.lastWheel=srv.lastWheel;
-      saveMyData(d);
-      // Aggiorna timer e bottone
-      var spun2=getWheelSpunToday();
-      var b=document.getElementById('wheelSpinBtn');
-      if(b){b.disabled=spun2;b.textContent=spun2?'Già girata oggi!':'GIRA!';}
-      updateWheelTimer();
-    }
-  }).catch(function(){});
 }
-async function spinWheel(){
-  // LOCK IMMEDIATO - blocca qualsiasi click successivo
+function spinWheel(){
+  // LOCK IMMEDIATO
   if(wheelSpinning) return;
   wheelSpinning=true;
   var btn=document.getElementById('wheelSpinBtn');
-  if(btn){btn.disabled=true;btn.textContent='Verifica...';}
+  if(btn){btn.disabled=true;}
 
-  // Segna lastWheel SUBITO nel localStorage (prima di tutto)
+  // Controlla localStorage (sincrono, istantaneo)
   var d=getMyData();
   if(!d){wheelSpinning=false;return;}
   if(d.lastWheel && typeof d.lastWheel==='number' && (Date.now()-d.lastWheel)<86400000){
@@ -1911,17 +1894,17 @@ async function spinWheel(){
     return;
   }
 
-  // Salva lastWheel IMMEDIATAMENTE prima di girare
+  // Salva lastWheel SUBITO (sincrono)
   d.lastWheel=Date.now();
   saveMyData(d);
 
-  // Salva su server in parallelo (non aspettiamo la risposta per girare)
-  jbPut({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
-    proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
-    proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')
-  }).catch(function(){});
-
-  if(btn){btn.textContent='GIRA!';}
+  // Fire-and-forget su JSONBin (non blocca)
+  setTimeout(function(){
+    jbPut({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
+      proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
+      proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')
+    }).catch(function(){});
+  }, 0);
 
   // Calcola premio
   var prizes=WHEEL_PRIZES;
