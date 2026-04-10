@@ -1227,6 +1227,32 @@ function addTokens(n){
   _syncProNow();
 }
 
+function resetAllAccounts(){
+  var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+  var count=Object.keys(all).length;
+  if(!count){showToast('Nessun account da resettare','err');return;}
+  Object.keys(all).forEach(function(u){
+    all[u].tokens=300;
+    all[u].storia=[];
+    all[u].bets=0;
+    all[u].lastWheel=null;
+  });
+  localStorage.setItem('sac_pro_data',JSON.stringify(all));
+  // Salva subito su JSONBin
+  var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
+    proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
+    proData:all};
+  setSyncStatus('loading','Reset in corso...');
+  fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
+  .then(function(r){
+    if(r.ok){setSyncStatus('ok','Reset completato ✓');showToast('✅ '+count+' account resettati a 300 token!');}
+    else setSyncStatus('err','Errore reset');
+  })
+  .catch(function(){setSyncStatus('err','Errore connessione');});
+  renderProAdmin();
+  renderPronostici();
+}
+
 function _syncProNow(){
   var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
     proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
@@ -1993,7 +2019,10 @@ function renderProAdmin(){
       h+='</div>';
     }
   }
-  h+='<button onclick="proAdminLogged=false;renderProAdmin()" style="width:100%;margin-top:14px;padding:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#ef4444;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer;letter-spacing:1px">🔓 Logout Admin</button>';
+  h+='<div style="display:flex;gap:8px;margin-top:14px">';
+  h+='<button onclick="resetAllAccounts()" style="flex:1;padding:11px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);color:var(--gold);border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔄 Reset a 300</button>';
+  h+='<button onclick="proAdminLogged=false;renderProAdmin()" style="flex:1;padding:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#ef4444;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔓 Logout</button>';
+  h+='</div>';
     el.innerHTML=h;
 }
 
