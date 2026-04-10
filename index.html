@@ -487,11 +487,10 @@ const API_KEY = "$2a$10$x.dSFPS14HXK3N5haPJtm.NxD/i2mFa0.60RKp92TL6nihvWQc06a"
 
 // ── FETCH JSONBIN WRAPPER (con timeout e retry) ──
 async function jbFetch(url, opts, retries){
-  retries = retries||2;
+  retries = retries||3;
   opts = opts||{};
-  // Aggiungi timeout 8s
   var ctrl = new AbortController();
-  var timer = setTimeout(function(){ctrl.abort();}, 8000);
+  var timer = setTimeout(function(){ctrl.abort();}, 10000);
   opts.signal = ctrl.signal;
   try {
     var res = await fetch(url, opts);
@@ -499,10 +498,10 @@ async function jbFetch(url, opts, retries){
     return res;
   } catch(e) {
     clearTimeout(timer);
-    if(retries > 1 && e.name !== 'AbortError'){
-      // Aspetta 1.5s e riprova
-      await new Promise(function(r){setTimeout(r,1500);});
-      return jbFetch(url, opts, retries-1);
+    if(retries > 1){
+      // Aspetta e riprova (anche per AbortError = timeout)
+      await new Promise(function(r){setTimeout(r,2000);});
+      return jbFetch(url, {method:opts.method,headers:opts.headers,body:opts.body}, retries-1);
     }
     throw e;
   }
@@ -1838,8 +1837,7 @@ function updateWheelTimer(){
   var m=Math.floor((diff%3600000)/60000);
   var s=Math.floor((diff%60000)/1000);
   var timeStr=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
-  el.textContent='⏳ Disponibile tra: '+timeStr;
-  // Aggiorna anche il bottone nella pagina principale
+  el.textContent='⏳ '+timeStr;
   var btnSub=document.getElementById('wheelBtnTimer');
   if(btnSub) btnSub.textContent=timeStr+' ⏳';
 }
@@ -1999,7 +1997,7 @@ async function refreshPro(){
     setSyncStatus('ok','Sincronizzato ✓');
     resolveMyBets();
     renderPronostici();
-  } catch(e){ setSyncStatus('err','Errore sync'); }
+  } catch(e){ setSyncStatus('ok',''); } // silenzioso se offline
 }
 function resolveMyBets(){
   // Controlla e paga le scommesse dell'utente corrente
