@@ -1717,11 +1717,20 @@ function updateWheelTimer(){
   if(!el) return;
   var d=getMyData();
   if(!d||!d.lastWheel){el.textContent='';return;}
-  var last=typeof d.lastWheel==='number'?d.lastWheel:new Date(d.lastWheel).getTime();
-  var diff=86400000-(Date.now()-last); // ms rimanenti alle 24h
+  var last, diff;
+  if(typeof d.lastWheel==='number'){
+    // Nuovo formato: timestamp preciso, 24h esatte
+    last=d.lastWheel;
+    diff=86400000-(Date.now()-last);
+  } else {
+    // Vecchio formato stringa: countdown a mezzanotte
+    var now=new Date();
+    var midnight=new Date();
+    midnight.setHours(24,0,0,0);
+    diff=midnight-now;
+  }
   if(diff<=0){
     el.textContent='';
-    // Sblocca bottone
     var btn=document.getElementById('wheelSpinBtn');
     if(btn){btn.disabled=false;btn.textContent='GIRA!';}
     clearInterval(_wheelTimerInterval);
