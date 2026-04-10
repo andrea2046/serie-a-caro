@@ -1,0 +1,23 @@
+name: Deploy SAC
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Inject secrets into HTML
+        run: |
+          sed -i "s|__JSONBIN_API_KEY__|${{ secrets.JSONBIN_API_KEY }}|g" serie_a_caro.html
+          sed -i "s|__JSONBIN_BIN_ID__|${{ secrets.JSONBIN_BIN_ID }}|g" serie_a_caro.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
