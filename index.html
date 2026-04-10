@@ -1273,6 +1273,37 @@ function addTokens(n){
   _syncProNow();
 }
 
+
+function _confirmReset(){
+  // Prima conferma
+  var el=document.getElementById('proAdminContent');
+  if(!el) return;
+  var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+  var count=Object.keys(all).length;
+  el.innerHTML+='<div id="resetConfirm" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">'
+    +'<div style="background:var(--s2);border:1px solid rgba(245,197,24,0.3);border-radius:var(--r);padding:24px;max-width:320px;width:100%;text-align:center">'
+    +'<div style="font-size:32px;margin-bottom:12px">⚠️</div>'
+    +'<div style="font-family:Anton,sans-serif;font-size:18px;color:var(--gold);margin-bottom:8px">RESET ACCOUNTS</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-bottom:20px">Stai per resettare <strong style="color:var(--text)">'+count+' account</strong> a 300 token.<br>Scommesse e storia cancellate.<br><br><strong style="color:var(--red)">Operazione irreversibile!</strong></div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Scrivi <strong style="color:var(--gold)">RESET</strong> per confermare:</div>'
+    +'<input id="resetInput" placeholder="Scrivi RESET" style="width:100%;padding:10px;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);border-radius:var(--rs);font-family:DM Sans,sans-serif;font-size:14px;text-align:center;outline:none;box-sizing:border-box;margin-bottom:14px">'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="_cancelReset()" style="flex:1;padding:11px;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);border-radius:var(--rs);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer">Annulla</button>'
+    +'<button onclick="_doReset()" style="flex:1;padding:11px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;border-radius:var(--rs);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer">Conferma</button>'
+    +'</div></div></div>';
+}
+
+function _cancelReset(){var c=document.getElementById("resetConfirm");if(c)c.remove();}
+function _doReset(){
+  var input=document.getElementById('resetInput');
+  if(!input||input.value.trim().toUpperCase()!=='RESET'){
+    showToast('Scrivi RESET per confermare!','err');
+    return;
+  }
+  document.getElementById('resetConfirm').remove();
+  resetAllAccounts();
+}
+
 function resetAllAccounts(){
   var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
   var count=Object.keys(all).length;
@@ -2142,7 +2173,7 @@ function renderProAdmin(){
     }
   }
   h+='<div style="display:flex;gap:8px;margin-top:14px">';
-  h+='<button onclick="resetAllAccounts()" style="flex:1;padding:11px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);color:var(--gold);border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔄 Reset a 300</button>';
+  h+='<button onclick="_confirmReset()" style="flex:1;padding:11px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);color:var(--gold);border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔄 Reset a 300</button>';
   h+='<button onclick="proAdminLogged=false;renderProAdmin()" style="flex:1;padding:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#ef4444;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔓 Logout</button>';
   h+='</div>';
     el.innerHTML=h;
