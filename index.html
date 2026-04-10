@@ -484,6 +484,41 @@ select option{background:var(--s2)}
 // ══════════════════════════════════════
 const BIN_ID = "69d681f3856a6821891087c0"
 const API_KEY = "$2a$10$x.dSFPS14HXK3N5haPJtm.NxD/i2mFa0.60RKp92TL6nihvWQc06a"
+
+// ── FETCH JSONBIN WRAPPER (con timeout e retry) ──
+async function jbFetch(url, opts, retries){
+  retries = retries||2;
+  opts = opts||{};
+  // Aggiungi timeout 8s
+  var ctrl = new AbortController();
+  var timer = setTimeout(function(){ctrl.abort();}, 8000);
+  opts.signal = ctrl.signal;
+  try {
+    var res = await fetch(url, opts);
+    clearTimeout(timer);
+    return res;
+  } catch(e) {
+    clearTimeout(timer);
+    if(retries > 1 && e.name !== 'AbortError'){
+      // Aspetta 1.5s e riprova
+      await new Promise(function(r){setTimeout(r,1500);});
+      return jbFetch(url, opts, retries-1);
+    }
+    throw e;
+  }
+}
+
+async function jbGet(){
+  return jbFetch(BIN_URL+'/latest', {headers:{'X-Master-Key':API_KEY}});
+}
+
+async function jbPut(body){
+  return jbFetch(BIN_URL, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
+    body:JSON.stringify(body)
+  });
+}
 const BIN_URL = "https://api.jsonbin.io/v3/b/" + BIN_ID
 const PASSWORD_HASH = "5d28a834728f3baeb111d317aa4606f5bb82c0ce762b534ec91c23c0ed54031a"
 
@@ -532,7 +567,7 @@ function setSyncStatus(s,l) {
 async function binLoad() {
   setSyncStatus("loading","Caricamento...")
   try {
-    const res = await fetch(BIN_URL+"/latest",{headers:{"X-Master-Key":API_KEY}})
+    const res = await jbGet()
     if (!res.ok) throw new Error("HTTP "+res.status)
     const data = (await res.json()).record
     matches = (data.matches&&data.matches.length) ? data.matches : generateMatches(groupsDef)
@@ -579,7 +614,7 @@ async function binLoad() {
 async function binSave() {
   setSyncStatus("loading","Salvataggio...")
   try {
-    const res = await fetch(BIN_URL,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":API_KEY},body:JSON.stringify({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')})})
+    const res = await jbPut({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')})
     if (!res.ok) throw new Error("HTTP "+res.status)
     const ora = new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})
     setSyncStatus("ok","Salvato alle "+ora+" ✓")
@@ -724,11 +759,16 @@ async function castVote(matchId,choice){
     var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
       proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
       proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')};
-    var res=await fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)});
+    var res=await jbPut(body);
     if(res.ok) setSyncStatus('ok','Voto salvato ✓');
     else setSyncStatus('err','Errore voto');
   } catch(e){ setSyncStatus('err','Errore connessione'); }
 }
+
+window._shareBet=function(idx){
+  if(!window._storia||!window._storia[idx]) return;
+  condividiSchedina(window._storia[idx]);
+};
 
 function _renderPollPopup(matchId,teamA,teamB,votes){
   var uv=getUserVote(matchId);
@@ -792,7 +832,7 @@ function openPoll(matchId,teamA,teamB){
   document.getElementById('pollPopup').style.display='flex';
 
   // Aggiorna voti live da JSONBin
-  fetch(BIN_URL+'/latest',{headers:{'X-Master-Key':API_KEY}})
+  jbGet()
   .then(function(r){return r.json();})
   .then(function(data){
     var arr=activeLeague==='M'?data.record.matches:data.record.matchesF;
@@ -1164,8 +1204,11 @@ var proAdminLogged=false;
 var proActiveTab='scommesse';
 var proLeague='M';
 var proAuthMode='login';
-var proSchedina=[];
+// Ripristina schedina dal localStorage
+var _savedSched=JSON.parse(localStorage.getItem('sac_schedina')||'[]');
+var proSchedina=_savedSched;
 var proMatchSel={};
+_savedSched.forEach(function(b){proMatchSel[b.matchId]={market:b.market,label:b.label,odd:b.odd};});
 var proPuntata=50;
 var openDetails={};
 var selectedAvatarIdx=0;
@@ -1191,7 +1234,7 @@ function _syncPro(){
       proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
       proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')
     };
-    fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
+    jbPut(body)
     .catch(function(){});
   },300); // 300ms debounce
 }
@@ -1243,7 +1286,7 @@ function resetAllAccounts(){
     proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
     proData:all};
   setSyncStatus('loading','Reset in corso...');
-  fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
+  jbPut(body)
   .then(function(r){
     if(r.ok){setSyncStatus('ok','Reset completato ✓');showToast('✅ '+count+' account resettati a 300 token!');}
     else setSyncStatus('err','Errore reset');
@@ -1258,7 +1301,7 @@ function _syncProNow(){
     proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
     proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')};
   setSyncStatus('loading','Salvataggio...');
-  fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
+  jbPut(body)
   .then(function(r){if(r.ok)setSyncStatus('ok','Salvato ✓');else setSyncStatus('err','Errore');})
   .catch(function(){setSyncStatus('err','Errore connessione');});
 }
@@ -1529,6 +1572,8 @@ function proSelect(matchId,market,label,odd){
     proSchedina.push({matchId:matchId,teamA:teamA,teamB:teamB,market:market,label:label,odd:odd,isF:_isF});
     proMatchSel[matchId]={market:market,label:label,odd:odd};
   }
+  // Salva schedina nel localStorage (persiste al refresh)
+  localStorage.setItem('sac_schedina',JSON.stringify(proSchedina));
   renderPronostici();
 }
 function proAddToSched(matchId,teamA,teamB,isF){
@@ -1556,6 +1601,28 @@ function getShuffledMatches(mList,isF){
   return arr; // tutte le partite
 }
 
+
+function condividiSchedina(bet){
+  var text='🎰 LA MIA SCHEDINA SAC 2026\n\n';
+  bet.schedina.forEach(function(b){
+    text+='⚽ '+b.teamA+' vs '+b.teamB+'\n';
+    text+='   → '+b.label+' @ '+b.odd+'\n\n';
+  });
+  text+='📊 Quota: '+bet.qt+'x\n';
+  text+='💰 Puntata: '+bet.puntata+' 🪙\n';
+  text+='🏆 Vincita potenziale: '+bet.vincita+' 🪙';
+  if(bet.status==='win') text+='\n\n✅ VINTA! +'+bet.vincita+' token 🎉';
+  else if(bet.status==='lose') text+='\n\n❌ Persa';
+  else text+='\n\n⏳ In attesa di risultati';
+  text+='\n\n🔗 serieacaro.github.io';
+  if(navigator.share){
+    navigator.share({title:'Schedina SAC 2026',text:text}).catch(function(){});
+  } else {
+    navigator.clipboard.writeText(text).then(function(){
+      showToast('📋 Copiato!');
+    }).catch(function(){showToast('Errore','err');});
+  }
+}
 function piazzaScommessa(){
   var d=getMyData();
   if(!d){showToast('Devi essere loggato!','err');return;}
@@ -1586,6 +1653,7 @@ function piazzaScommessa(){
   saveMyData(d);
   proSchedina=[];
   proMatchSel={};
+  localStorage.removeItem('sac_schedina');
   showToast('🎰 Scommessa piazzata! Quota '+qt+'x');
   _syncProNow(); // salva immediatamente
   renderPronostici();
@@ -1740,7 +1808,11 @@ function drawWheel(angle){
 var _wheelTimerInterval=null;
 function updateWheelTimer(){
   var el=document.getElementById('wheelTimer');
-  if(!el) return;
+  if(!el){
+    // Elemento non trovato - popup chiuso, ferma timer
+    clearInterval(_wheelTimerInterval);
+    return;
+  }
   var d=getMyData();
   if(!d||!d.lastWheel){el.textContent='';return;}
   var last, diff;
@@ -1781,7 +1853,7 @@ async function spinWheel(){
   if(wheelSpinning) return;
   // Verifica dal server prima di girare (anti-cheat)
   try {
-    var res=await fetch(BIN_URL+'/latest',{headers:{'X-Master-Key':API_KEY},signal:AbortSignal.timeout(4000)});
+    var res=await jbGet();
     var data=(await res.json()).record;
     var sess=getProSession();
     if(sess&&data.proData&&data.proData[sess.username]){
@@ -1833,6 +1905,10 @@ async function spinWheel(){
       document.getElementById('wheelSpinBtn').textContent='Già girata oggi!';
       renderPronostici();
       showToast('🎡 Hai vinto +'+prize.tokens+' token!');
+      // Riavvia timer dopo la spin
+      clearInterval(_wheelTimerInterval);
+      updateWheelTimer();
+      _wheelTimerInterval=setInterval(updateWheelTimer,1000);
     }
   }
   requestAnimationFrame(animate);
@@ -1869,7 +1945,7 @@ function checkSel(b){
 
 async function refreshPro(){
   try {
-    var res=await fetch(BIN_URL+'/latest',{headers:{'X-Master-Key':API_KEY},signal:AbortSignal.timeout(5000)});
+    var res=await jbGet();
     var data=(await res.json()).record;
     if(data.proUsers){
       var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
@@ -1979,7 +2055,7 @@ function _delUser(i){
   var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
     proUsers:us,proData:all};
   setSyncStatus('loading','Eliminazione...');
-  fetch(BIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},body:JSON.stringify(body)})
+  jbPut(body)
   .then(function(r){if(r.ok)setSyncStatus('ok','Account eliminato ✓');else setSyncStatus('err','Errore sync');})
   .catch(function(){setSyncStatus('err','Errore connessione');});
 }
@@ -2010,10 +2086,11 @@ function renderProAdmin(){
       var av=d.avatar||AVATARS[0];
       h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:8px">';
       h+='<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+av+'</div>';
+      var _pending=(d.storia||[]).filter(function(s){return s.status==='pending'});
       h+='<div style="flex:1">';
       h+='<div style="font-weight:700;font-size:13px">'+dn+'</div>';
       h+='<div style="font-size:10px;color:var(--blue)">@'+uname+'</div>';
-      h+='<div style="font-size:11px;color:var(--muted)">🪙 '+(d.tokens||0)+' · '+(d.bets||0)+' scommesse</div>';
+      h+='<div style="font-size:11px;color:var(--muted)">🪙 '+(d.tokens||0)+' · '+(d.bets||0)+' bet'+(_pending.length?' · <span style="color:var(--gold)">'+_pending.length+' pending</span>':'')+'</div>';
       h+='</div>';
       h+='<button onclick="_delUser('+i+')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#ef4444;padding:8px 12px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer;flex-shrink:0">🗑️ Elimina</button>';
       h+='</div>';
@@ -2032,7 +2109,7 @@ function renderPronostici(){
   if(!el||!el.classList.contains('active')) return;
   var sess=getProSession();
 
-  if(!sess){
+    if(!sess){
     if(proAuthMode==='register'){
       el.innerHTML=
         '<div style="padding:32px 0 20px;text-align:center">'+
@@ -2188,7 +2265,10 @@ function renderPronostici(){
       h+='<div class="pro-sched-ft"><div class="pro-qt-row"><span class="pro-qt-lbl">Quota totale</span><span class="pro-qt-val">'+qt+'x</span></div>';
       h+='<input type="number" class="pro-stake-in" value="'+proPuntata+'" min="1" max="'+tokens+'" oninput="_updateStake(this.value)" placeholder="Puntata (token)">';
       h+='<div class="pro-win-row"><span class="pro-win-lbl">Vincita potenziale</span><span class="pro-win-val" id="_winVal">🪙 '+vincita+'</span></div>';
-      h+='<button class="pro-piazza" onclick="piazzaScommessa()"'+(tokens<proPuntata?' disabled':'')+'>PIAZZA SCOMMESSA</button>';
+      h+='<div style="display:flex;gap:8px;margin-top:10px">';
+      h+='<button onclick="condividiSchedina()" style="padding:12px 14px;background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.3);color:var(--blue);border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer">📤</button>';
+      h+='<button class="pro-piazza" onclick="piazzaScommessa()" style="flex:1"'+(tokens<proPuntata?' disabled':'')+'>PIAZZA SCOMMESSA</button>';
+      h+='</div>';
       h+='</div></div>';
     }
   }
@@ -2220,6 +2300,7 @@ function renderPronostici(){
   // STORIA
   if(proActiveTab==='storia'){
     var _st=d&&d.storia?d.storia:[];
+    window._storia=_st; // salva per condivisione
     var _wins=_st.filter(function(s){return s.status==='win'}).length;
     var _losses=_st.filter(function(s){return s.status==='lose'}).length;
     var _pending=_st.filter(function(s){return s.status==='pending'}).length;
@@ -2245,7 +2326,10 @@ function renderPronostici(){
       var _bdg=_s.status==='win'?'<span class="bw">✅ +'+_s.vincita+'🪙</span>':_s.status==='lose'?'<span class="bl">❌ -'+_s.puntata+'🪙</span>':'<span class="bp">⏳ '+_s.qt+'x</span>';
       var _exp=expandedStoria[_s.id];
       h+='<div class="pro-st-row" onclick="expandedStoria['+_s.id+']=!expandedStoria['+_s.id+'];renderPronostici()">';
-      h+='<div><div style="font-weight:600;font-size:12px">'+_s.schedina.map(function(x){return x.label}).join(' · ')+'</div><div style="color:var(--muted);font-size:10px">'+_date+' · 🪙'+_s.puntata+'</div></div>'+_bdg+'</div>';
+      h+='<div style="flex:1"><div style="font-weight:600;font-size:12px">'+_s.schedina.map(function(x){return x.label}).join(' · ')+'</div><div style="color:var(--muted);font-size:10px">'+_date+' · 🪙'+_s.puntata+'</div></div>';
+      h+=_bdg;
+      h+='<button onclick="event.stopPropagation();window._shareBet('+_xi+')" style="background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.25);color:var(--blue);padding:6px 8px;border-radius:8px;font-size:12px;cursor:pointer;margin-left:6px;flex-shrink:0">📤</button>';
+      h+='</div>';
       if(_exp){
         h+='<div class="pro-st-detail open">';
         for(var _di=0;_di<_s.schedina.length;_di++){
