@@ -663,12 +663,16 @@ function changePage(p, btn) {
   document.getElementById(p).classList.add("active")
   if (btn) { document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active")); btn.classList.add("active") }
   document.getElementById('newsFab').style.display = (admin && p==='notizie') ? 'flex' : 'none'
+  // Pulizia timer quando si cambia tab
+  if(p!=='pronostici'){
+    clearInterval(_wheelTimerInterval); _wheelTimerInterval=null;
+    clearInterval(_wheelBtnTimerInterval); _wheelBtnTimerInterval=null;
+  }
   if (p==='pronostici') {
-    renderPronostici(); // renderizza subito con dati locali
+    renderPronostici();
     var now=Date.now();
     if(now-_lastProRefresh>30000){
       _lastProRefresh=now;
-      // aggiorna in background senza bloccare la UI
       setTimeout(function(){ refreshPro(); }, 100);
     }
   }
@@ -1891,45 +1895,55 @@ function openWheelPopup(){
   }).catch(function(){});
 }
 async function spinWheel(){
+  // LOCK IMMEDIATO - blocca qualsiasi click successivo
   if(wheelSpinning) return;
-  // Verifica dal server prima di girare (anti-cheat)
-  try {
-    var res=await jbGet();
-    var data=(await res.json()).record;
-    var sess=getProSession();
-    if(sess&&data.proData&&data.proData[sess.username]){
-      var serverData=data.proData[sess.username];
-      // Aggiorna lastWheel dal server (fonte di verità)
-      if(serverData.lastWheel){
-        var d=getMyData();
-        if(d){d.lastWheel=serverData.lastWheel;saveMyData(d);}
-      }
-    }
-  } catch(e){ /* usa dati locali se offline */ }
-  if(getWheelSpunToday()){
+  wheelSpinning=true;
+  var btn=document.getElementById('wheelSpinBtn');
+  if(btn){btn.disabled=true;btn.textContent='Verifica...';}
+
+  // Segna lastWheel SUBITO nel localStorage (prima di tutto)
+  var d=getMyData();
+  if(!d){wheelSpinning=false;return;}
+  if(d.lastWheel && typeof d.lastWheel==='number' && (Date.now()-d.lastWheel)<86400000){
     showToast('Hai già girato oggi!','err');
-    renderPronostici();
+    wheelSpinning=false;
+    if(btn){btn.disabled=true;btn.textContent='Già girata oggi!';}
     return;
   }
-  wheelSpinning=true;
-  document.getElementById('wheelSpinBtn').disabled=true;
 
-  // Usa WHEEL_PRIZES (4 fette) - il premio è determinato dai pesi
+  // Salva lastWheel IMMEDIATAMENTE prima di girare
+  d.lastWheel=Date.now();
+  saveMyData(d);
+
+  // Salva su server in parallelo (non aspettiamo la risposta per girare)
+  jbPut({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
+    proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
+    proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')
+  }).catch(function(){});
+
+  if(btn){btn.textContent='GIRA!';}
+
+  // Calcola premio
   var prizes=WHEEL_PRIZES;
   var total=prizes.length;
   var arc=(Math.PI*2)/total;
-
-  // Calcola l'indice vincente in base al seed giornaliero
   var prizeIdx=getDailyPrizeIdx()%total;
   var prize=prizes[prizeIdx];
-
-  // Calcola l'angolo finale per fermarsi sulla fetta giusta
   var sectorOffset=(Math.random()-0.5)*arc*0.5;
   var targetAngle=-(prizeIdx*arc+arc/2+sectorOffset);
   var spins=(5+Math.floor(Math.random()*4))*Math.PI*2;
   var finalAngle=targetAngle-spins;
-
   var duration=4500,startTime=performance.now(),startAngle=wheelAngle;
+
+  // Safety: resetta wheelSpinning dopo 10s al massimo
+  var _safetyTimer=setTimeout(function(){
+    if(wheelSpinning){
+      wheelSpinning=false;
+      var b=document.getElementById('wheelSpinBtn');
+      if(b){b.disabled=true;b.textContent='Già girata oggi!';}
+    }
+  },10000);
+
   function animate(now){
     var progress=Math.min((now-startTime)/duration,1);
     var ease=1-Math.pow(1-progress,3);
@@ -1938,15 +1952,14 @@ async function spinWheel(){
     if(progress<1){
       requestAnimationFrame(animate);
     } else {
+      clearTimeout(_safetyTimer);
       wheelSpinning=false;
-      markWheelSpun();
       addTokens(prize.tokens);
       document.getElementById('wheelResult').textContent='+'+prize.tokens+' TOKEN! 🎉';
       document.getElementById('wheelResultSub').textContent='Saldo aggiornato!';
-      document.getElementById('wheelSpinBtn').textContent='Già girata oggi!';
+      if(btn){btn.disabled=true;btn.textContent='Già girata oggi!';}
       renderPronostici();
       showToast('🎡 Hai vinto +'+prize.tokens+' token!');
-      // Riavvia timer dopo la spin
       clearInterval(_wheelTimerInterval);
       updateWheelTimer();
       _wheelTimerInterval=setInterval(updateWheelTimer,1000);
@@ -2239,11 +2252,10 @@ function renderPronostici(){
   h+='<span class="pro-act-btn-icon">🎡</span>';
   h+='<span class="pro-act-btn-lbl">Ruota Fortuna</span>';
   h+='<span class="pro-act-btn-sub" id="wheelBtnTimer">'+(wheelReady?'Disponibile!':(_wTimerTxt||'Già girata ✓'))+'</span>';
-  // Avvia timer bottone se non ancora disponibile
-  if(!wheelReady){
-    clearInterval(_wheelBtnTimerInterval);
+  // Avvia timer bottone una sola volta
+  if(!wheelReady&&!_wheelBtnTimerInterval){
     _wheelBtnTimerInterval=setInterval(updateWheelTimerBtn,1000);
-  } else {
+  } else if(wheelReady){
     clearInterval(_wheelBtnTimerInterval);
     _wheelBtnTimerInterval=null;
   }
