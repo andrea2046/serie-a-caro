@@ -2459,13 +2459,14 @@ var _qzTimer_=null,_qzTimeLeft_=15,_qzCurr_=0,_qzTok_=0,_qzOk_=0,_qzKo_=0,_qzAns
 var _qzCats_={storia:'Storia',campioni:'Campioni',capocannonieri:'Capocannonieri',record:'Record',nazioni:'Nazioni',icone:'Icone',stadi:'Stadi',curiosita:'Curiosita'};
 
 function openQuizGame(){
-  showToast('DEBUG: openQuizGame chiamato');
-  var m=document.getElementById('_qzModal_');
-  showToast(m?'DEBUG: modal trovato':'DEBUG: modal NULL!','err');
-  if(!m)return;
-  m.style.display='flex';
+  var d=getMyData();
+  if(d && d.lastQuiz && (Date.now()-d.lastQuiz)<86400000){
+    showToast('Hai già giocato al quiz oggi!','err');
+    return;
+  }
+  document.getElementById('_qzModal_').style.display='flex';
   document.getElementById('wheelPopup').style.display='none';
-  try{_qzStart_();}catch(e){showToast('DEBUG err: '+e.message,'err');}
+  _qzStart_();
 }
 
 function _qzStart_(){
@@ -2561,6 +2562,9 @@ function _qzShowResult_(){
   document.getElementById('_qzGrade_').style.color=color;
   document.getElementById('_qzFinalTok_').textContent='+'+_qzTok_+' token';
   document.getElementById('_qzFinalSub_').textContent=comment;
+  // Salva lastQuiz
+  var dq=getMyData();
+  if(dq){dq.lastQuiz=Date.now();saveMyData(dq);}
   if(_qzTok_>0){addTokens(_qzTok_);renderPronostici();showToast('Quiz! +'+_qzTok_+' token!');}
 }
 
@@ -2579,18 +2583,7 @@ function _resetUser(idx){
 }
 
 
-function openQuizGame(){
-  var iframe=document.getElementById('quizIframe');
-  var src=document.getElementById('quizSrc').innerHTML;
-  iframe.srcdoc=src;
-  document.getElementById('quizModal').style.display='flex';
-  document.getElementById('wheelPopup').style.display='none';
-}
-window.addEventListener('message',function(e){
-  if(!e.data)return;
-  if(e.data.type==='quizDone'){document.getElementById('quizModal').style.display='none';if(e.data.tokens>0){addTokens(e.data.tokens);renderPronostici();showToast('Quiz! +'+e.data.tokens+' token!');}}
-  if(e.data.type==='quizClose')document.getElementById('quizModal').style.display='none';
-});
+
 var _rgShot=false,_rgChosen=null;
 var _rgBP={l:{x:.22,y:.82},c:{x:.50,y:.22},r:{x:.78,y:.82}};
 var _rgKD={l:{xFrac:.14,deg:-38,arms:false},c:{xFrac:.50,deg:0,arms:true},r:{xFrac:.82,deg:38,arms:false}};
@@ -2691,7 +2684,7 @@ function rgShoot(){
       <div id="_qzGrade_" style="font-family:Anton,sans-serif;font-size:20px;margin-bottom:6px"></div>
       <div id="_qzFinalTok_" style="font-family:Anton,sans-serif;font-size:36px;color:#f5c518;margin-bottom:4px"></div>
       <div id="_qzFinalSub_" style="font-size:12px;color:#4a6880;margin-bottom:14px"></div>
-      <button onclick="_qzStart_()" style="width:100%;padding:12px;background:linear-gradient(135deg,#3d8ef0,#005bc4);border:none;border-radius:12px;font-family:Anton,sans-serif;font-size:15px;letter-spacing:2px;color:#fff;cursor:pointer;margin-bottom:8px">RIGIOCA</button>
+      
       <button onclick="document.getElementById('_qzModal_').style.display='none';clearInterval(_qzTimer_)" style="width:100%;padding:10px;background:transparent;border:1px solid rgba(255,255,255,0.08);color:#4a6880;border-radius:12px;font-family:Anton,sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer">Chiudi</button>
     </div>
   </div>
