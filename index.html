@@ -2114,7 +2114,11 @@ async function refreshPro(){
           serverD[sess.username]=merged;
         }
       } else if(sess&&sess.username&&localD[sess.username]&&!serverD[sess.username]){
+        // Utente vecchio non su server → carica da locale e forza sync
         serverD[sess.username]=localD[sess.username];
+        setTimeout(function(){
+          jbPut(_buildSyncBody()).catch(function(){});
+        }, 1500);
       }
       localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
     }
