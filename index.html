@@ -675,6 +675,11 @@ async function binLoad() {
       localStorage.setItem('sac_pro_data',JSON.stringify(mergedD));
     }
     setSyncStatus("ok","Sincronizzato ✓")
+    // Se utente loggato → push immediato per ripopolare JSONBin
+    var _sessNow=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
+    if(_sessNow&&_sessNow.username){
+      setTimeout(function(){ jbPut(_buildSyncBody()).catch(function(){}); }, 800);
+    }
   } catch(e) {
     setSyncStatus("err","Errore connessione")
     matches = generateMatches(groupsDef)
