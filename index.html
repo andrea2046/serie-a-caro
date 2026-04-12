@@ -747,11 +747,7 @@ function changePage(p, btn) {
     var now=Date.now();
     if(now-_lastProRefresh>30000){
       _lastProRefresh=now;
-      // Resetta cache binLoad per forzare controllo utente su server
-      window._lastBinLoad=0;
-      setTimeout(function(){ 
-        binLoad().then(function(){ renderPronostici(); }).catch(function(){});
-      }, 100);
+      setTimeout(function(){ refreshPro(); }, 100);
     }
   }
   const hBtn = document.getElementById('proAdminHeaderBtn')
