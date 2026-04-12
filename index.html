@@ -621,6 +621,13 @@ function setSyncStatus(s,l) {
 }
 
 async function binLoad() {
+  // Cache: non ricaricare se fatto negli ultimi 10s
+  var now=Date.now();
+  if(window._lastBinLoad && (now-window._lastBinLoad)<10000){
+    setSyncStatus('ok','Sincronizzato ✓');
+    return;
+  }
+  window._lastBinLoad=now;
   setSyncStatus("loading","Caricamento...")
   try {
     const res = await jbGet()
@@ -649,16 +656,20 @@ async function binLoad() {
       var localD=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
       var serverD=data.proData;
       var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
-      var mergedD=Object.assign({},localD,serverD); // JSONBin vince su tutti
-      // Eccezione: se l'utente corrente ha dati locali PIÙ AGGIORNATI (più token o più scommesse)
+      // JSONBin è l'unica fonte di verità per tutti gli utenti
+      // Solo per l'utente corrente: proteggi azioni locali non ancora sincronizzate
+      var mergedD=Object.assign({},serverD);
       if(sess&&sess.username&&localD[sess.username]&&serverD[sess.username]){
         var loc=localD[sess.username],srv=serverD[sess.username];
-        // Prendi il dato locale se ha più token o storia più lunga
-        if((loc.tokens||0)>(srv.tokens||0)||(loc.storia||[]).length>(srv.storia||[]).length){
-          mergedD[sess.username]=loc;
+        var srvReset=srv.resetAt||0,locReset=loc.resetAt||0;
+        if(srvReset<=locReset){
+          // Nessun reset server recente: proteggi token locali più alti
+          if((loc.tokens||0)>(srv.tokens||0)) mergedD[sess.username].tokens=loc.tokens;
+          // Proteggi storia locale più lunga (scommessa non ancora syncata)
+          if((loc.storia||[]).length>(srv.storia||[]).length) mergedD[sess.username].storia=loc.storia;
         }
       } else if(sess&&sess.username&&localD[sess.username]&&!serverD[sess.username]){
-        // Utente registrato localmente ma non ancora su server
+        // Utente nuovo non ancora su server
         mergedD[sess.username]=localD[sess.username];
       }
       localStorage.setItem('sac_pro_data',JSON.stringify(mergedD));
@@ -1294,18 +1305,23 @@ function saveAllData(d){
 var _syncProTimer=null;
 function _syncPro(){
   clearTimeout(_syncProTimer);
+  // Debounce 2s per ridurre richieste con molti utenti
   _syncProTimer=setTimeout(function(){
+    var sess=getProSession();
     var rawData=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
     var compData={};
     Object.keys(rawData).forEach(function(u){
       var d=Object.assign({},rawData[u]);
-      if(d.storia&&d.storia.length>20) d.storia=d.storia.slice(-20);
+      // Max 30 scommesse per utente
+      if(d.storia&&d.storia.length>30) d.storia=d.storia.slice(-30);
+      // Rimuovi campi inutili per risparmiare spazio
+      delete d._tmp;
       compData[u]=d;
     });
     var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
       proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:compData};
     jbPut(body).catch(function(){});
-  },300);
+  },2000); // 2s debounce
 }
 function getProSession(){return JSON.parse(localStorage.getItem('sac_pro_session')||'null');}
 function setProSession(u){localStorage.setItem('sac_pro_session',JSON.stringify(u));_syncPro();}
