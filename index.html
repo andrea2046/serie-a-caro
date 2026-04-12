@@ -1493,7 +1493,12 @@ function proLogin(){
   var username=u.value.trim(),pwd=p.value.trim();
   var users=getUsers();
   if(!users[username]||users[username]!==btoa(pwd)){showToast('Credenziali errate!','err');return;}
-  setProSession({username:username});showToast('✅ Bentornato!');renderPronostici();
+  setProSession({username:username});
+  showToast('✅ Bentornato!');
+  renderPronostici();
+  // Ricarica dati dal server per aggiornare la classifica
+  window._lastBinLoad=0; // resetta cache binLoad
+  binLoad().then(function(){ renderPronostici(); }).catch(function(){});
 }
 function proLogout(){clearProSession();proActiveTab='scommesse';renderPronostici();}
 function proDeleteAccount(){
@@ -2114,11 +2119,11 @@ async function refreshPro(){
           serverD[sess.username]=merged;
         }
       } else if(sess&&sess.username&&localD[sess.username]&&!serverD[sess.username]){
-        // Utente vecchio non su server → carica da locale e forza sync
+        // Utente vecchio non su server → carica da locale e uploada subito
         serverD[sess.username]=localD[sess.username];
-        setTimeout(function(){
-          jbPut(_buildSyncBody()).catch(function(){});
-        }, 1500);
+        localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
+        jbPut(_buildSyncBody()).catch(function(){});
+        return;
       }
       localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
     }
