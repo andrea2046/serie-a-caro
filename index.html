@@ -2,6 +2,50 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<script>
+// ── PROTEZIONE SITO ──
+(function(){
+  // 1. Disabilita tasto destro
+  document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+  // 2. Disabilita selezione testo
+  document.addEventListener('selectstart', function(e){ e.preventDefault(); });
+
+  // 3. Blocca scorciatoie da tastiera pericolose
+  document.addEventListener('keydown', function(e){
+    // Ctrl+U (sorgente), Ctrl+S (salva), Ctrl+A (seleziona tutto)
+    // Ctrl+C (copia), Ctrl+P (stampa), F12, Ctrl+Shift+I/J/C (devtools)
+    if(e.ctrlKey && (e.key==='u'||e.key==='U'||e.key==='s'||e.key==='S'||
+       e.key==='a'||e.key==='A'||e.key==='c'||e.key==='C'||e.key==='p'||e.key==='P')){
+      e.preventDefault();return false;
+    }
+    if(e.key==='F12'){e.preventDefault();return false;}
+    if(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='i'||e.key==='J'||e.key==='j'||e.key==='C'||e.key==='c')){
+      e.preventDefault();return false;
+    }
+  });
+
+  // 4. Rilevamento DevTools aperto (loop su debugger)
+  // Tecnica: misura il tempo tra due punti con debugger attivo
+  var devOpen=false;
+  setInterval(function(){
+    var t=new Date();
+    (function(){})['constructor']('debugger')();
+    if(new Date()-t>100){
+      if(!devOpen){
+        devOpen=true;
+        document.body.innerHTML='<div style="position:fixed;inset:0;background:#04070e;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px"><div style="font-family:Anton,sans-serif;font-size:28px;color:#ff4454;letter-spacing:3px">&#x26A0; ACCESSO NEGATO</div><div style="color:#4a6880;font-size:14px">Chiudi gli strumenti sviluppatore e ricarica la pagina.</div></div>';
+      }
+    } else { devOpen=false; }
+  },1000);
+
+  // 5. Disabilita drag delle immagini
+  document.addEventListener('dragstart',function(e){e.preventDefault();});
+
+  // 6. Blocca iframe embedding (clickjacking)
+  if(window.top!==window.self){ window.top.location=window.self.location; }
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>SAC 2026</title>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -2689,5 +2733,10 @@ function rgShoot(){
     </div>
   </div>
 </div>
+
+<div style="text-align:center;padding:18px 0 24px;font-size:11px;color:#2a3a50;letter-spacing:1px;font-family:'DM Sans',sans-serif;user-select:none">
+  &copy; 2026 Andrea Bel&agrave; &mdash; Tutti i diritti riservati
+</div>
+
 </body>
 </html>
