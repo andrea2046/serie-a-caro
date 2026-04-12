@@ -658,7 +658,7 @@ async function binLoad() {
       var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
       // JSONBin è l'unica fonte di verità per tutti gli utenti
       // Solo per l'utente corrente: proteggi azioni locali non ancora sincronizzate
-      var mergedD=Object.assign({},serverD);
+      var mergedD=Object.assign({},localD,serverD); // locale+server, JSONBin vince
       if(sess&&sess.username&&localD[sess.username]&&serverD[sess.username]){
         var loc=localD[sess.username],srv=serverD[sess.username];
         var srvReset=srv.resetAt||0,locReset=loc.resetAt||0;
