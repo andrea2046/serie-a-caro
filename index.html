@@ -623,7 +623,7 @@ function setSyncStatus(s,l) {
 async function binLoad() {
   // Cache: non ricaricare se fatto negli ultimi 10s
   var now=Date.now();
-  if(window._lastBinLoad && (now-window._lastBinLoad)<10000){
+  if(window._lastBinLoad && (now-window._lastBinLoad)<30000){
     setSyncStatus('ok','Sincronizzato ✓');
     return;
   }
@@ -687,7 +687,7 @@ async function binLoad() {
 async function binSave() {
   setSyncStatus("loading","Salvataggio...")
   try {
-    const res = await jbPut({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')})
+    const res = await jbPut(_buildSyncBody())
     if (!res.ok) throw new Error("HTTP "+res.status)
     const ora = new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})
     setSyncStatus("ok","Salvato alle "+ora+" ✓")
@@ -833,10 +833,7 @@ async function castVote(matchId,choice){
   // Salva su JSONBin
   setSyncStatus('loading','Salvataggio voto...');
   try {
-    var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
-      proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
-      proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')};
-    var res=await jbPut(body);
+    var res=await jbPut(_buildSyncBody());
     if(res.ok) setSyncStatus('ok','Voto salvato ✓');
     else setSyncStatus('err','Errore voto');
   } catch(e){ setSyncStatus('err','Errore connessione'); }
@@ -1303,24 +1300,30 @@ function saveAllData(d){
 }
 
 var _syncProTimer=null;
+
+function _compressProData(raw){
+  var out={};
+  Object.keys(raw).forEach(function(u){
+    var d=Object.assign({},raw[u]);
+    if(d.storia&&d.storia.length>30) d.storia=d.storia.slice(-30);
+    delete d._tmp;
+    out[u]=d;
+  });
+  return out;
+}
+function _buildSyncBody(){
+  return {
+    matches:matches, matchesF:matchesF,
+    playerImages:playerImages, news:newsList,
+    proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
+    proData:_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}'))
+  };
+}
 function _syncPro(){
   clearTimeout(_syncProTimer);
   // Debounce 2s per ridurre richieste con molti utenti
   _syncProTimer=setTimeout(function(){
-    var sess=getProSession();
-    var rawData=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
-    var compData={};
-    Object.keys(rawData).forEach(function(u){
-      var d=Object.assign({},rawData[u]);
-      // Max 30 scommesse per utente
-      if(d.storia&&d.storia.length>30) d.storia=d.storia.slice(-30);
-      // Rimuovi campi inutili per risparmiare spazio
-      delete d._tmp;
-      compData[u]=d;
-    });
-    var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
-      proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:compData};
-    jbPut(body).catch(function(){});
+    jbPut(_buildSyncBody()).catch(function(){});
   },2000); // 2s debounce
 }
 function getProSession(){return JSON.parse(localStorage.getItem('sac_pro_session')||'null');}
@@ -1417,11 +1420,8 @@ function resetAllAccounts(){
 }
 
 function _syncProNow(){
-  var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
-    proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
-    proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')};
   setSyncStatus('loading','Salvataggio...');
-  jbPut(body)
+  jbPut(_buildSyncBody())
   .then(function(r){if(r.ok)setSyncStatus('ok','Salvato ✓');else setSyncStatus('err','Errore');})
   .catch(function(){setSyncStatus('err','Errore connessione');});
 }
@@ -2010,10 +2010,7 @@ function spinWheel(){
 
   // Fire-and-forget su JSONBin (non blocca)
   setTimeout(function(){
-    jbPut({matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
-      proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
-      proData:JSON.parse(localStorage.getItem('sac_pro_data')||'{}')
-    }).catch(function(){});
+    jbPut(_buildSyncBody()).catch(function(){});
   }, 0);
 
   // Calcola premio
@@ -2813,18 +2810,6 @@ function _qzShowResult_(){
   var dq=getMyData();if(dq){dq.lastQuiz=Date.now();saveMyData(dq);}
   if(_qzTok_>0){addTokens(_qzTok_);renderPronostici();showToast('Quiz! +'+_qzTok_+' token!');}
 }
-function _resetUser(idx){
-  var uname=window._pau[idx];if(!uname)return;
-  if(!confirm('Resettare @'+uname+'?'))return;
-  var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');if(!all[uname])return;
-  all[uname].tokens=300;all[uname].storia=[];all[uname].bets=0;all[uname].lastWheel=null;all[uname].resetAt=Date.now();
-  localStorage.setItem('sac_pro_data',JSON.stringify(all));
-  var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),proData:all};
-  setSyncStatus('loading','Reset...');
-  jbPut(body).then(function(r){setSyncStatus(r.ok?'ok':'err',r.ok?'Reset!':'Errore');if(r.ok)showToast('Account @'+uname+' resettato!');}).catch(function(){setSyncStatus('err','Errore');});
-  renderProAdmin();
-}
-
 
 function openQuizGame(){
   var iframe=document.getElementById('quizIframe');
