@@ -1364,6 +1364,35 @@ function addTokens(n){
 }
 
 
+
+function _exportData(){
+  try {
+    var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+    var users=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
+    var backup={
+      timestamp: new Date().toISOString(),
+      data: {
+        proData: all,
+        proUsers: users,
+        matches: matches,
+        matchesF: matchesF,
+        news: newsList
+      }
+    };
+    var json=JSON.stringify(backup, null, 2);
+    var blob=new Blob([json], {type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    var date=new Date().toISOString().slice(0,10);
+    a.href=url;
+    a.download='serieacaro_backup_'+date+'.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('💾 Backup scaricato!');
+  } catch(e){
+    showToast('Errore export: '+e.message,'err');
+  }
+}
 function _confirmReset(){
   var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
   var count=Object.keys(all).length;
@@ -2261,6 +2290,7 @@ function renderProAdmin(){
   }
   h+='<div style="display:flex;gap:8px;margin-top:14px">';
   h+='<button onclick="_confirmReset()" style="flex:1;padding:11px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);color:var(--gold);border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔄 Reset a 300</button>';
+  h+='<button onclick="_exportData()" style="flex:1;padding:11px;background:rgba(0,214,143,0.08);border:1px solid rgba(0,214,143,0.25);color:#00d68f;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">💾 Backup</button>';
   h+='<button onclick="proAdminLogged=false;renderProAdmin()" style="flex:1;padding:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#ef4444;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔓 Logout</button>';
   h+='</div>';
     el.innerHTML=h;
