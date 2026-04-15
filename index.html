@@ -6,19 +6,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://api.jsonbin.io">
 <script>
-(function(){
-  document.addEventListener('contextmenu',function(e){e.preventDefault();});
-  document.addEventListener('selectstart',function(e){e.preventDefault();});
-  document.addEventListener('keydown',function(e){
-    if(e.ctrlKey&&(e.key==='u'||e.key==='U'||e.key==='s'||e.key==='S'||e.key==='p'||e.key==='P')){e.preventDefault();return false;}
-    if(e.key==='F12'){e.preventDefault();return false;}
-    if(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='i'||e.key==='J'||e.key==='j'||e.key==='C'||e.key==='c')){e.preventDefault();return false;}
-  });
-  document.addEventListener('dragstart',function(e){e.preventDefault();});
-  if(window.top!==window.self){window.top.location=window.self.location;}
-})();
-</script>
-<script>
 // ── PROTEZIONE SITO ──
 (function(){
   // 1. Disabilita tasto destro
@@ -59,7 +46,7 @@
   document.addEventListener('dragstart',function(e){e.preventDefault();});
 
   // 6. Blocca iframe embedding (clickjacking)
-  if(window.top!==window.self){ window.top.location=window.self.location; }
+  if(window.top!==window.self){ try{window.top.location=window.self.location;}catch(e){} }
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -647,6 +634,15 @@ async function binLoad() {
     // Carica dati pronostici: MERGE (locale + JSONBin, JSONBin vince per altri utenti)
     if(data.proUsers){
       var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
+      // Safety: se server ha MOLTI meno utenti del locale, potrebbe essere corrotto
+      var localCount=Object.keys(localU).length;
+      var serverCount=Object.keys(data.proUsers).length;
+      if(localCount>5 && serverCount>0 && serverCount<localCount*0.5){
+        console.warn('ATTENZIONE: server ha '+serverCount+' utenti vs '+localCount+' locali. Possibile corruzione. Mantengo dati locali.');
+        setSyncStatus('err','Dati server sospetti ('+serverCount+' vs '+localCount+')');
+        // NON sovrascrivere, ma carica comunque matches/news
+        return;
+      }
       var mergedU=Object.assign({},localU,data.proUsers);
       localStorage.setItem('sac_pro_users',JSON.stringify(mergedU));
       // Se utente eliminato dal server -> forza logout
@@ -694,7 +690,7 @@ async function binLoad() {
       }
       localStorage.setItem('sac_pro_data',JSON.stringify(mergedD));
     }
-    window._binLoadOk=true; // Guard: abilita scritture solo dopo load riuscito
+    window._binLoadOk=true;
     setSyncStatus("ok","Sincronizzato ✓")
     // Salva cache locale per caricamento veloce
     try{
@@ -712,9 +708,9 @@ async function binLoad() {
     }
     // Push rimosso: era fonte di race condition. Il sync avviene solo su azioni esplicite.
   } catch(e) {
-    window._binLoadOk=false; // Guard: blocca scritture dopo load fallito
+    window._binLoadOk=false;
     setSyncStatus("err","Errore connessione")
-    // NON resettare matches se abbiamo dati in cache
+    // NON resettare i dati se abbiamo cache locale
     if(!matches||!matches.length) matches = generateMatches(groupsDef)
     if(!matchesF||!matchesF.length) matchesF = generateMatches(groupsDefF)
     showToast("Errore connessione","err")
@@ -722,7 +718,7 @@ async function binLoad() {
 }
 
 async function binSave() {
-  if(!window._binLoadOk){showToast('Errore: ricarica la pagina prima di salvare','err');return false;}
+  if(!window._binLoadOk){showToast('Ricarica la pagina prima','err');return false;}
   setSyncStatus("loading","Salvataggio...")
   try {
     const res = await jbPut(_buildSyncBody())
@@ -868,13 +864,17 @@ async function castVote(matchId,choice){
     _renderPollPopup(matchId,m.a,m.b,m.pollVotes);
   }
 
-  // Salva su JSONBin
-  setSyncStatus('loading','Salvataggio voto...');
-  try {
-    var res=await jbPut(_buildSyncBody());
-    if(res.ok) setSyncStatus('ok','Voto salvato ✓');
-    else setSyncStatus('err','Errore voto');
-  } catch(e){ setSyncStatus('err','Errore connessione'); }
+  // Salva su JSONBin (debounced)
+  clearTimeout(window._voteTimer);
+  window._voteTimer=setTimeout(async function(){
+    if(!window._binLoadOk) return;
+    setSyncStatus('loading','Salvataggio voto...');
+    try {
+      var res=await jbPut(_buildSyncBody());
+      if(res.ok) setSyncStatus('ok','Voto salvato ✓');
+      else setSyncStatus('err','Errore voto');
+    } catch(e){ setSyncStatus('err','Errore connessione'); }
+  },1500);
 }
 
 window._shareBet=function(idx){
@@ -1394,18 +1394,19 @@ function _compressProData(raw){
   return out;
 }
 function _buildSyncBody(){
-  // Escludi playerImages se vuoto per ridurre payload
   var _pi=playerImages&&Object.keys(playerImages).length>0?playerImages:{};
   var _data=_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}'));
   var _users=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
   return {
+    _v:Date.now(), // timestamp scrittura per debug
+    _userCount:Object.keys(_data).length, // contatore utenti per verifica
     matches:matches, matchesF:matchesF,
     playerImages:_pi, news:newsList,
     proUsers:_users, proData:_data
   };
 }
 function _syncPro(){
-  if(!window._binLoadOk){console.warn('Sync bloccato: ultimo load fallito');return;}
+  if(!window._binLoadOk){return;}
   clearTimeout(_syncProTimer);
   // Debounce 2s per ridurre richieste con molti utenti
   _syncProTimer=setTimeout(function(){
@@ -1484,97 +1485,71 @@ function _triggerImport(){
     reader.onload=function(ev){
       try {
         var backup=JSON.parse(ev.target.result);
-        if(!backup.data){showToast('File non valido: manca "data"','err');return;}
+        if(!backup.data){showToast('File non valido','err');return;}
         var d=backup.data;
         var userCount=d.proData?Object.keys(d.proData).length:0;
         var newsCount=d.news?d.news.length:0;
         var matchCount=d.matches?d.matches.filter(function(m){return m.played}).length:0;
         var ts=backup.timestamp?new Date(backup.timestamp).toLocaleString('it-IT'):'sconosciuto';
-        // Lista utenti con nome/cognome/token
         var userListHtml='';
         if(d.proData){
           var entries=Object.entries(d.proData).sort(function(a,b){return (b[1].tokens||0)-(a[1].tokens||0)});
           userListHtml='<div style="max-height:180px;overflow-y:auto;margin:8px 0;border:1px solid var(--border);border-radius:var(--rs);text-align:left">';
-          entries.forEach(function(e,i){
-            var u=e[0],ud=e[1];
-            var nome=(ud.nome||'')+' '+(ud.cognome||'');
-            nome=nome.trim()||u;
-            userListHtml+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">'
-              +'<span style="color:var(--muted);min-width:18px;font-weight:700">'+(i+1)+'</span>'
-              +'<span style="flex:1;font-weight:600;color:var(--text)">'+nome+' <span style="color:var(--blue);font-weight:400">@'+u+'</span></span>'
-              +'<span style="color:var(--gold);font-weight:700">🪙 '+(ud.tokens||0)+'</span>'
-              +'</div>';
+          entries.forEach(function(e2,i){
+            var u=e2[0],ud=e2[1];
+            var nome=(ud.nome||'')+' '+(ud.cognome||'');nome=nome.trim()||u;
+            userListHtml+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px"><span style="color:var(--muted);min-width:18px;font-weight:700">'+(i+1)+'</span><span style="flex:1;font-weight:600;color:var(--text)">'+nome+' <span style="color:var(--blue);font-weight:400">@'+u+'</span></span><span style="color:var(--gold);font-weight:700">\u{1F4B0} '+(ud.tokens||0)+'</span></div>';
           });
           userListHtml+='</div>';
         }
-        // Mostra popup conferma con dettagli
         var existing=document.getElementById('importConfirm');
         if(existing) existing.remove();
         var div=document.createElement('div');
         div.id='importConfirm';
         div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.90);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
         div.innerHTML='<div style="background:var(--s2);border:1px solid rgba(0,214,143,0.3);border-radius:var(--r);padding:24px;max-width:340px;width:100%;text-align:center">'
-          +'<div style="font-size:32px;margin-bottom:12px">📂</div>'
+          +'<div style="font-size:32px;margin-bottom:12px">\u{1F4C2}</div>'
           +'<div style="font-family:Anton,sans-serif;font-size:18px;color:#00d68f;margin-bottom:8px">RIPRISTINA BACKUP</div>'
           +'<div style="font-size:13px;color:var(--muted);margin-bottom:6px;text-align:left;line-height:1.7">'
-          +'<div>📅 Data: <strong style="color:var(--text)">'+ts+'</strong></div>'
-          +'<div>👥 Utenti: <strong style="color:var(--text)">'+userCount+'</strong></div>'
-          +'<div>⚽ Partite giocate: <strong style="color:var(--text)">'+matchCount+'</strong></div>'
-          +'<div>📰 Notizie: <strong style="color:var(--text)">'+newsCount+'</strong></div>'
+          +'<div>\u{1F4C5} Data: <strong style="color:var(--text)">'+ts+'</strong></div>'
+          +'<div>\u{1F465} Utenti: <strong style="color:var(--text)">'+userCount+'</strong></div>'
+          +'<div>\u26BD Partite giocate: <strong style="color:var(--text)">'+matchCount+'</strong></div>'
+          +'<div>\u{1F4F0} Notizie: <strong style="color:var(--text)">'+newsCount+'</strong></div>'
           +'</div>'
           +userListHtml
-          +'<div style="font-size:12px;color:var(--red);margin:12px 0 16px">⚠️ I dati attuali verranno sostituiti!</div>'
+          +'<div style="font-size:12px;color:var(--red);margin:12px 0 16px">\u26A0\uFE0F I dati attuali verranno sostituiti!</div>'
           +'<div style="display:flex;gap:8px">'
           +'<button id="importCancel" style="flex:1;padding:11px;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);border-radius:var(--rs);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer">Annulla</button>'
-          +'<button id="importConfirmBtn" style="flex:1;padding:11px;background:rgba(0,214,143,0.15);border:1px solid rgba(0,214,143,0.4);color:#00d68f;border-radius:var(--rs);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer">✅ Ripristina</button>'
+          +'<button id="importConfirmBtn" style="flex:1;padding:11px;background:rgba(0,214,143,0.15);border:1px solid rgba(0,214,143,0.4);color:#00d68f;border-radius:var(--rs);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer">\u2705 Ripristina</button>'
           +'</div></div>';
         document.body.appendChild(div);
         document.getElementById('importCancel').onclick=function(){div.remove();};
-        document.getElementById('importConfirmBtn').onclick=function(){
-          div.remove();
-          _doImport(d);
-        };
-      } catch(err){
-        showToast('Errore lettura file: '+err.message,'err');
-      }
+        document.getElementById('importConfirmBtn').onclick=function(){div.remove();_doImport(d);};
+      } catch(err){showToast('Errore file: '+err.message,'err');}
     };
     reader.readAsText(file);
   };
   inp.click();
 }
-
 function _doImport(d){
   try {
-    // Bypass write guard per ripristino backup
     window._binLoadOk=true;
-    // Ripristina dati locali
     if(d.proData) localStorage.setItem('sac_pro_data',JSON.stringify(d.proData));
     if(d.proUsers) localStorage.setItem('sac_pro_users',JSON.stringify(d.proUsers));
     if(d.matches&&d.matches.length) matches=d.matches;
     if(d.matchesF&&d.matchesF.length) matchesF=d.matchesF;
     if(d.news) newsList=d.news;
     if(d.playerImages) playerImages=d.playerImages;
-    // Aggiorna cache locale
     try{localStorage.setItem('sac_jsonbin_cache',JSON.stringify({matches:matches,matchesF:matchesF,playerImages:{},news:[],ts:Date.now()}));}catch(e){}
-    // Push su JSONBin
-    setSyncStatus('loading','Ripristino in corso...');
-    var body=_buildSyncBody();
-    jbPut(body).then(function(r){
+    setSyncStatus('loading','Ripristino...');
+    jbPut(_buildSyncBody()).then(function(r){
       if(r.ok){
-        setSyncStatus('ok','Ripristino completato ✓');
-        showToast('✅ Backup ripristinato! '+Object.keys(d.proData||{}).length+' utenti');
+        setSyncStatus('ok','Ripristino completato \u2713');
+        showToast('\u2705 Backup ripristinato! '+Object.keys(d.proData||{}).length+' utenti');
         rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderProAdmin();renderPronostici();
-      } else {
-        setSyncStatus('err','Errore upload su server');
-        showToast('Dati locali ok, ma errore sync server','err');
-      }
-    }).catch(function(){
-      setSyncStatus('err','Errore connessione');
-      showToast('Dati locali ok, errore rete. Riprova','err');
-    });
-  } catch(e){
-    showToast('Errore ripristino: '+e.message,'err');
-  }
+      } else {setSyncStatus('err','Errore upload');showToast('Errore sync server','err');}
+    }).catch(function(){setSyncStatus('err','Errore rete');showToast('Dati locali ok, errore rete','err');});
+  } catch(e){showToast('Errore: '+e.message,'err');}
 }
 
 function _confirmReset(){
@@ -1611,6 +1586,8 @@ function _doReset(){
 }
 
 function resetAllAccounts(){
+  // Auto-backup prima del reset
+  _exportData();
   var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
   var count=Object.keys(all).length;
   if(!count){showToast('Nessun account da resettare','err');return;}
@@ -1638,7 +1615,7 @@ function resetAllAccounts(){
 }
 
 function _syncProNow(){
-  if(!window._binLoadOk){console.warn('Sync bloccato: ultimo load fallito');showToast('Errore: ricarica prima la pagina','err');return;}
+  if(!window._binLoadOk){showToast('Ricarica la pagina prima','err');return;}
   setSyncStatus('loading','Salvataggio...');
   jbPut(_buildSyncBody())
   .then(function(r){if(r.ok)setSyncStatus('ok','Salvato ✓');else setSyncStatus('err','Errore');})
@@ -1684,6 +1661,7 @@ function validateName(n){
 }
 
 function proRegister(){
+  if(!window._binLoadOk){showToast('Attendi il caricamento dati...','err');return;}
   var nm=document.getElementById('proRegNome'),cg=document.getElementById('proRegCognome'),u=document.getElementById('proRegU'),p=document.getElementById('proRegP'),p2=document.getElementById('proRegP2');
   if(!nm||!cg||!u||!p||!p2) return;
   var nome=nm.value.trim(),cognome=cg.value.trim(),username=u.value.trim().toLowerCase(),pwd=p.value,pwd2=p2.value;
@@ -1709,6 +1687,7 @@ function proRegister(){
   });
 }
 function proLogin(){
+  if(!window._binLoadOk){showToast('Attendi il caricamento...','err');return;}
   var u=document.getElementById('proLoginU'),p=document.getElementById('proLoginP');
   if(!u||!p) return;
   var username=u.value.trim(),pwd=p.value.trim();
@@ -2371,7 +2350,7 @@ async function refreshPro(){
     setSyncStatus('ok','Sincronizzato ✓');
     resolveMyBets();
     renderPronostici();
-  } catch(e){ setSyncStatus('ok',''); } // silenzioso se offline
+  } catch(e){ setSyncStatus('err','Offline'); }
 }
 function resolveMyBets(){
   // Controlla e paga le scommesse dell'utente corrente
