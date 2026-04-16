@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://api.jsonbin.io">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script>
 // ── PROTEZIONE SITO ──
 (function(){
@@ -529,46 +531,85 @@ select option{background:var(--s2)}
 // ══════════════════════════════════════
 // COSTANTI
 // ══════════════════════════════════════
-const BIN_ID = "69d681f3856a6821891087c0"
-const API_KEY = "$2a$10$Ki2d/fMbvOQQyVN81NcfKud08beqkDdKoTCsh4bTazGO7x4EKCEdu"
+// ══════════════════════════════════════
+// FIREBASE REALTIME DATABASE
+// ══════════════════════════════════════
 
-// ── FETCH JSONBIN WRAPPER (con timeout e retry) ──
-async function jbFetch(url, opts, retries){
-  retries = retries||3;
-  opts = opts||{};
-  var ctrl = new AbortController();
-  var timer = setTimeout(function(){ctrl.abort();}, 6000);
-  opts.signal = ctrl.signal;
-  try {
-    var res = await fetch(url, opts);
-    clearTimeout(timer);
-    return res;
-  } catch(e) {
-    clearTimeout(timer);
-    if(retries > 1){
-      // Aspetta e riprova (anche per AbortError = timeout)
-      await new Promise(function(r){setTimeout(r,2000);});
-      return jbFetch(url, {method:opts.method,headers:opts.headers,body:opts.body}, retries-1);
-    }
-    throw e;
-  }
-}
+// ── CONFIGURAZIONE FIREBASE ──
+// ISTRUZIONI: vai su https://console.firebase.google.com
+// 1. Crea progetto → nome "serieacaro"
+// 2. Realtime Database → Crea database → Regione europe-west1
+// 3. Regole → imposta:  {"rules":{".read":true,".write":true}}
+// 4. Impostazioni progetto (ingranaggio) → Le tue app → Web → Copia config
+// 5. Sostituisci i valori qui sotto con i tuoi
 
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCiFDH2LpGRIz_PlMS0iSrGtasjyVA5ezc",
+  authDomain: "serieacaro-52154.firebaseapp.com",
+  databaseURL: "https://serieacaro-52154-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "serieacaro-52154",
+  storageBucket: "serieacaro-52154.firebasestorage.app",
+  messagingSenderId: "465231058042",
+  appId: "1:465231058042:web:010570afbd4eefc10097c3"
+};
+
+var _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+var _fbDb = firebase.database();
+var _fbRef = _fbDb.ref('sac');
+
+// ── WRAPPER COMPATIBILITÀ (stessa interfaccia di prima) ──
 async function jbGet(){
-  return jbFetch(BIN_URL+'/latest', {
-    headers:{'X-Master-Key':API_KEY, 'Cache-Control':'no-cache'}
-  });
+  var snap = await _fbRef.once('value');
+  var val = snap.val() || {};
+  return { ok:true, json: async function(){ return { record: val }; } };
 }
-
-const BIN_URL = "https://api.jsonbin.io/v3/b/" + BIN_ID
 
 async function jbPut(body){
-  return jbFetch(BIN_URL, {
-    method:'PUT',
-    headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
-    body:JSON.stringify(body)
-  });
+  await _fbRef.set(body);
+  return { ok:true };
 }
+
+// ── SCRITTURE PER PERCORSO (mai più sovrascritture globali!) ──
+function fbWritePath(path, data){
+  return _fbRef.child(path).set(data).catch(function(e){ console.error('Firebase write error:',path,e); });
+}
+function fbUpdatePath(path, data){
+  return _fbRef.child(path).update(data).catch(function(e){ console.error('Firebase update error:',path,e); });
+}
+
+// ── LISTENER REALTIME ──
+var _fbFirstLoad = true;
+_fbRef.on('value', function(snap){
+  var data = snap.val();
+  if(!data) return;
+  // Aggiorna dati globali
+  if(data.matches && data.matches.length) matches = data.matches;
+  if(data.matchesF && data.matchesF.length) matchesF = data.matchesF;
+  if(data.playerImages) playerImages = data.playerImages;
+  if(data.news) newsList = data.news;
+  // Aggiorna utenti (server è la verità)
+  if(data.proUsers) localStorage.setItem('sac_pro_users', JSON.stringify(data.proUsers));
+  if(data.proData){
+    // Merge intelligente per utente corrente
+    var sess = JSON.parse(localStorage.getItem('sac_pro_session')||'null');
+    var localD = JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+    var serverD = data.proData;
+    if(sess && sess.username && localD[sess.username] && serverD[sess.username]){
+      var loc=localD[sess.username], srv=serverD[sess.username];
+      if((loc.tokens||0)>(srv.tokens||0)) serverD[sess.username].tokens=loc.tokens;
+    }
+    localStorage.setItem('sac_pro_data', JSON.stringify(serverD));
+  }
+  window._binLoadOk = true;
+  // Ri-renderizza (ma non al primo load, lo fa initApp)
+  if(!_fbFirstLoad){
+    try{ rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderPronostici(); }catch(e){}
+  }
+  _fbFirstLoad = false;
+  setSyncStatus('ok','Connesso ✓');
+});
+
+_fbRef.on('child_changed', function(){ /* gestito da value listener */ });
 const PASSWORD_HASH = "5d28a834728f3baeb111d317aa4606f5bb82c0ce762b534ec91c23c0ed54031a"
 
 const groupsDef = {
@@ -614,38 +655,34 @@ function setSyncStatus(s,l) {
 }
 
 async function binLoad() {
-  // Cache: non ricaricare se fatto negli ultimi 8s (ridotto da 30s)
+  // Firebase listener fa il lavoro pesante (realtime)
+  // Questa funzione è solo per il primo caricamento + compatibilità
   var now=Date.now();
   var force=arguments.length>0&&arguments[0]===true;
-  if(!force && window._lastBinLoad && (now-window._lastBinLoad)<8000){
-    setSyncStatus('ok','Sincronizzato ✓');
+  if(!force && window._lastBinLoad && (now-window._lastBinLoad)<5000){
+    setSyncStatus('ok','Connesso ✓');
     return;
   }
   window._lastBinLoad=now;
   setSyncStatus("loading","Caricamento...")
   try {
-    const res = await jbGet()
-    if (!res.ok) throw new Error("HTTP "+res.status)
-    const data = (await res.json()).record
-    matches = (data.matches&&data.matches.length) ? data.matches : generateMatches(groupsDef)
-    matchesF = (data.matchesF&&data.matchesF.length) ? data.matchesF : generateMatches(groupsDefF)
-    playerImages = data.playerImages||{}
-    newsList = data.news||[]
-    // Carica dati pronostici: MERGE (locale + JSONBin, JSONBin vince per altri utenti)
+    var snap = await _fbRef.once('value');
+    var data = snap.val();
+    if(!data){
+      // Database vuoto → primo avvio o reset
+      matches = generateMatches(groupsDef);
+      matchesF = generateMatches(groupsDefF);
+      playerImages = {}; newsList = [];
+      setSyncStatus("ok","Database vuoto - pronto");
+      window._binLoadOk = true;
+      return;
+    }
+    matches = (data.matches&&data.matches.length) ? data.matches : generateMatches(groupsDef);
+    matchesF = (data.matchesF&&data.matchesF.length) ? data.matchesF : generateMatches(groupsDefF);
+    playerImages = data.playerImages||{};
+    newsList = data.news||[];
     if(data.proUsers){
-      var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
-      // Safety: se server ha MOLTI meno utenti del locale, potrebbe essere corrotto
-      var localCount=Object.keys(localU).length;
-      var serverCount=Object.keys(data.proUsers).length;
-      if(localCount>5 && serverCount>0 && serverCount<localCount*0.5){
-        console.warn('ATTENZIONE: server ha '+serverCount+' utenti vs '+localCount+' locali. Possibile corruzione. Mantengo dati locali.');
-        setSyncStatus('err','Dati server sospetti ('+serverCount+' vs '+localCount+')');
-        // NON sovrascrivere, ma carica comunque matches/news
-        return;
-      }
-      var mergedU=Object.assign({},localU,data.proUsers);
-      localStorage.setItem('sac_pro_users',JSON.stringify(mergedU));
-      // Se utente eliminato dal server -> forza logout
+      localStorage.setItem('sac_pro_users',JSON.stringify(data.proUsers));
       var sessTmp=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
       if(sessTmp&&sessTmp.username&&!data.proUsers[sessTmp.username]){
         localStorage.removeItem('sac_pro_session');
@@ -654,66 +691,16 @@ async function binLoad() {
       }
     }
     if(data.proData){
-      // JSONBin è la fonte di verità
-      // Per l'utente corrente: prendi il dato con più token (protezione da race condition)
-      var localD=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
-      var serverD=data.proData;
-      var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
-      // JSONBin è l'unica fonte di verità per tutti gli utenti
-      // Solo per l'utente corrente: proteggi azioni locali non ancora sincronizzate
-      var mergedD=Object.assign({},localD,serverD); // locale+server, JSONBin vince
-      if(sess&&sess.username&&localD[sess.username]&&serverD[sess.username]){
-        var loc=localD[sess.username],srv=serverD[sess.username];
-        var srvReset=srv.resetAt||0,locReset=loc.resetAt||0;
-        if(srvReset>locReset){
-          // Reset server recente: server vince SEMPRE
-          mergedD[sess.username]=srv;
-        } else {
-          // Nessun reset: merge intelligente, proteggi azioni locali non ancora syncate
-          var merged=Object.assign({},srv);
-          if((loc.tokens||0)>(srv.tokens||0)) merged.tokens=loc.tokens;
-          if((loc.storia||[]).length>(srv.storia||[]).length) merged.storia=loc.storia;
-          if((loc.bets||0)>(srv.bets||0)) merged.bets=loc.bets;
-          // Proteggi timestamp azioni locali più recenti
-          ['lastWheel','lastRigore','lastQuiz'].forEach(function(k){
-            if((loc[k]||0)>(srv[k]||0)) merged[k]=loc[k];
-          });
-          // Mantieni avatar/nome/cognome locali se modificati (server potrebbe essere stale)
-          if(loc.avatar && loc.avatar!==srv.avatar) merged.avatar=loc.avatar;
-          if(loc.nome && loc.nome!==srv.nome) merged.nome=loc.nome;
-          if(loc.cognome && loc.cognome!==srv.cognome) merged.cognome=loc.cognome;
-          mergedD[sess.username]=merged;
-        }
-      } else if(sess&&sess.username&&localD[sess.username]&&!serverD[sess.username]){
-        // Utente nuovo non ancora su server
-        mergedD[sess.username]=localD[sess.username];
-      }
-      localStorage.setItem('sac_pro_data',JSON.stringify(mergedD));
+      localStorage.setItem('sac_pro_data',JSON.stringify(data.proData));
     }
-    window._binLoadOk=true;
-    setSyncStatus("ok","Sincronizzato ✓")
-    // Salva cache locale per caricamento veloce
-    try{
-      // FIX 13: Escludi media base64 dalla cache per evitare overflow localStorage (~5MB)
-      var _newsLite=newsList.map(function(n){
-        var c=Object.assign({},n);
-        delete c.media; // rimuovi base64 pesanti
-        return c;
-      });
-      var _piLite={}; // Skip playerImages in cache (base64)
-      localStorage.setItem('sac_jsonbin_cache',JSON.stringify({matches:matches,matchesF:matchesF,playerImages:_piLite,news:_newsLite,ts:Date.now()}));
-    }catch(e){
-      // Se ancora troppo grande, prova senza news
-      try{localStorage.setItem('sac_jsonbin_cache',JSON.stringify({matches:matches,matchesF:matchesF,playerImages:{},news:[],ts:Date.now()}));}catch(e2){}
-    }
-    // Push rimosso: era fonte di race condition. Il sync avviene solo su azioni esplicite.
+    window._binLoadOk = true;
+    setSyncStatus("ok","Connesso ✓")
   } catch(e) {
     window._binLoadOk=false;
     setSyncStatus("err","Errore connessione")
-    // NON resettare i dati se abbiamo cache locale
     if(!matches||!matches.length) matches = generateMatches(groupsDef)
     if(!matchesF||!matchesF.length) matchesF = generateMatches(groupsDefF)
-    showToast("Errore connessione","err")
+    showToast("Errore connessione Firebase","err")
   }
 }
 
@@ -721,13 +708,19 @@ async function binSave() {
   if(!window._binLoadOk){showToast('Ricarica la pagina prima','err');return false;}
   setSyncStatus("loading","Salvataggio...")
   try {
-    const res = await jbPut(_buildSyncBody())
-    if (!res.ok) throw new Error("HTTP "+res.status)
-    const ora = new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})
+    // Scrivi solo partite + news + immagini (NON utenti - quelli vanno per percorso)
+    await _fbRef.update({
+      matches: matches,
+      matchesF: matchesF,
+      playerImages: playerImages&&Object.keys(playerImages).length>0?playerImages:{},
+      news: newsList
+    });
+    var ora = new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})
     setSyncStatus("ok","Salvato alle "+ora+" ✓")
     return true
   } catch(e) {
     setSyncStatus("err","Errore salvataggio")
+    showToast("Errore Firebase: "+e.message,"err")
     return false
   }
 }
@@ -864,17 +857,15 @@ async function castVote(matchId,choice){
     _renderPollPopup(matchId,m.a,m.b,m.pollVotes);
   }
 
-  // Salva su JSONBin (debounced)
+  // Salva su Firebase (debounced, solo partite)
   clearTimeout(window._voteTimer);
-  window._voteTimer=setTimeout(async function(){
+  window._voteTimer=setTimeout(function(){
     if(!window._binLoadOk) return;
-    setSyncStatus('loading','Salvataggio voto...');
-    try {
-      var res=await jbPut(_buildSyncBody());
-      if(res.ok) setSyncStatus('ok','Voto salvato ✓');
-      else setSyncStatus('err','Errore voto');
-    } catch(e){ setSyncStatus('err','Errore connessione'); }
-  },1500);
+    var key=activeLeague==='M'?'matches':'matchesF';
+    var arr=activeLeague==='M'?matches:matchesF;
+    fbWritePath(key, arr);
+    setSyncStatus('ok','Voto salvato ✓');
+  },1000);
 }
 
 window._shareBet=function(idx){
@@ -943,24 +934,8 @@ function openPoll(matchId,teamA,teamB){
   _renderPollPopup(matchId,teamA,teamB,votes);
   document.getElementById('pollPopup').style.display='flex';
 
-  // Aggiorna voti live da JSONBin
-  jbGet()
-  .then(function(r){return r.json();})
-  .then(function(data){
-    var arr=activeLeague==='M'?data.record.matches:data.record.matchesF;
-    if(!arr) return;
-    var mt=arr.find(function(x){return x.id===matchId;});
-    if(mt&&mt.pollVotes){
-      // Aggiorna match locale
-      var la=activeLeague==='M'?matches:matchesF;
-      var lm=la.find(function(x){return x.id===matchId;});
-      if(lm) lm.pollVotes=mt.pollVotes;
-      // Aggiorna popup se ancora aperto
-      if(document.getElementById('pollPopup').style.display==='flex'){
-        _renderPollPopup(matchId,teamA,teamB,mt.pollVotes);
-      }
-    }
-  }).catch(function(){});
+  // I voti si aggiornano in realtime tramite Firebase listener
+  // (non serve più fetch manuale)
 }
 
 function updatePollPill(matchId,votes,uv){
@@ -1217,7 +1192,8 @@ function voteNewsPoll(newsId,optIdx) {
   if(prev!==null) n.poll.options[parseInt(prev)].votes=Math.max(0,n.poll.options[parseInt(prev)].votes-1)
   n.poll.options[optIdx].votes++
   localStorage.setItem('npv_'+newsId,optIdx)
-  renderNews(); binSave()
+  renderNews();
+  fbWritePath('news', newsList);
 }
 
 function newsPollHTML(n) {
@@ -1272,19 +1248,7 @@ function initTheme(){
 
 async function initApp() {
   const setStatus=msg=>{const s=document.getElementById('splashStatus');if(s)s.textContent=msg}
-  // Carica subito da localStorage se disponibile (mostra sito in <100ms)
-  var _cachedData=localStorage.getItem('sac_jsonbin_cache');
-  if(_cachedData){
-    try{
-      var _cd=JSON.parse(_cachedData);
-      if(_cd.matches&&_cd.matches.length){
-        matches=_cd.matches; matchesF=_cd.matchesF||matchesF;
-        playerImages=_cd.playerImages||{}; newsList=_cd.news||[];
-        renderMatches();renderTable();renderScorers();renderNews();
-        hideSplash();
-      }
-    }catch(e){}
-  }
+  // Firebase realtime: caricamento diretto
   const safety=setTimeout(()=>{renderMatches();renderTable();renderScorers();renderNews();hideSplash()},5000)
   try {
     setStatus('Connessione...')
@@ -1303,27 +1267,19 @@ initTheme()
 window.addEventListener('beforeunload', function(){
   if(_syncProTimer){
     clearTimeout(_syncProTimer);
-    // navigator.sendBeacon is fire-and-forget, works during page unload
-    try {
-      var body=JSON.stringify(_buildSyncBody());
-      navigator.sendBeacon(BIN_URL, new Blob([body],{type:'application/json'}));
-    } catch(e){
-      // Fallback: try synchronous XHR (deprecated but works)
-      try {
-        var xhr=new XMLHttpRequest();
-        xhr.open('PUT',BIN_URL,false);
-        xhr.setRequestHeader('Content-Type','application/json');
-        xhr.setRequestHeader('X-Master-Key',API_KEY);
-        xhr.send(body);
-      } catch(e2){}
-    }
+    // Firebase gestisce automaticamente le scritture pendenti
   }
 });
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState==='hidden' && _syncProTimer){
     clearTimeout(_syncProTimer);
     _syncProTimer=null;
-    jbPut(_buildSyncBody()).catch(function(){});
+    // Forza salvataggio utente corrente
+    var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
+    if(sess && sess.username){
+      var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+      if(all[sess.username]) fbWritePath('proData/'+sess.username, all[sess.username]);
+    }
   }
 });
 
@@ -1373,12 +1329,12 @@ var expandedStoria={};
 function getUsers(){return JSON.parse(localStorage.getItem('sac_pro_users')||'{}');}
 function saveUsers(u){
   localStorage.setItem('sac_pro_users',JSON.stringify(u));
-  _syncPro();
+  fbWritePath('proUsers', u);
 }
 function getAllData(){return JSON.parse(localStorage.getItem('sac_pro_data')||'{}');}
 function saveAllData(d){
   localStorage.setItem('sac_pro_data',JSON.stringify(d));
-  _syncPro();
+  fbWritePath('proData', _compressProData(d));
 }
 
 var _syncProTimer=null;
@@ -1406,12 +1362,13 @@ function _buildSyncBody(){
   };
 }
 function _syncPro(){
-  if(!window._binLoadOk){return;}
+  if(!window._binLoadOk) return;
   clearTimeout(_syncProTimer);
-  // Debounce 2s per ridurre richieste con molti utenti
   _syncProTimer=setTimeout(function(){
-    jbPut(_buildSyncBody()).catch(function(){});
-  },3000); // 3s debounce
+    var _data=_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}'));
+    var _users=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
+    _fbRef.update({ proUsers:_users, proData:_data }).catch(function(e){console.error('syncPro error:',e);});
+  },2000);
 }
 function getProSession(){return JSON.parse(localStorage.getItem('sac_pro_session')||'null');}
 function setProSession(u){localStorage.setItem('sac_pro_session',JSON.stringify(u));}
@@ -1423,7 +1380,16 @@ function getMyData(){
   if(!all[sess.username]) all[sess.username]={tokens:300,bets:0,storia:[],avatar:AVATARS[0],nome:'',cognome:''};
   return all[sess.username];
 }
-function saveMyData(d){var sess=getProSession();if(!sess) return;var all=getAllData();all[sess.username]=d;saveAllData(all);}
+function saveMyData(d){
+  var sess=getProSession();if(!sess) return;
+  var all=getAllData();all[sess.username]=d;
+  localStorage.setItem('sac_pro_data',JSON.stringify(all));
+  // Scrivi SOLO i dati di questo utente (non tutti!)
+  var compressed=Object.assign({},d);
+  if(compressed.storia&&compressed.storia.length>30) compressed.storia=compressed.storia.slice(-30);
+  delete compressed._tmp;
+  fbWritePath('proData/'+sess.username, compressed);
+}
 
 function animateTokens(amount){
   // Anima il counter in topbar
@@ -1540,9 +1506,9 @@ function _doImport(d){
     if(d.matchesF&&d.matchesF.length) matchesF=d.matchesF;
     if(d.news) newsList=d.news;
     if(d.playerImages) playerImages=d.playerImages;
-    try{localStorage.setItem('sac_jsonbin_cache',JSON.stringify({matches:matches,matchesF:matchesF,playerImages:{},news:[],ts:Date.now()}));}catch(e){}
+    try{localStorage.setItem('sac_fb_cache',JSON.stringify({matches:matches,matchesF:matchesF,playerImages:{},news:[],ts:Date.now()}));}catch(e){}
     setSyncStatus('loading','Ripristino...');
-    jbPut(_buildSyncBody()).then(function(r){
+    _fbRef.set(_buildSyncBody()).then(function(){var r={ok:true};
       if(r.ok){
         setSyncStatus('ok','Ripristino completato \u2713');
         showToast('\u2705 Backup ripristinato! '+Object.keys(d.proData||{}).length+' utenti');
@@ -1600,15 +1566,9 @@ function resetAllAccounts(){
     all[u].resetAt=resetTimestamp; // marca il reset con timestamp
   });
   localStorage.setItem('sac_pro_data',JSON.stringify(all));
-  var body={matches:matches,matchesF:matchesF,playerImages:playerImages,news:newsList,
-    proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}'),
-    proData:all};
   setSyncStatus('loading','Reset in corso...');
-  jbPut(body)
-  .then(function(r){
-    if(r.ok){setSyncStatus('ok','Reset completato ✓');showToast('✅ '+count+' account resettati a 300 token!');}
-    else setSyncStatus('err','Errore reset');
-  })
+  fbWritePath('proData', all)
+  .then(function(){setSyncStatus('ok','Reset completato ✓');showToast('✅ '+count+' account resettati a 300 token!');})
   .catch(function(){setSyncStatus('err','Errore connessione');});
   renderProAdmin();
   renderPronostici();
@@ -1617,8 +1577,10 @@ function resetAllAccounts(){
 function _syncProNow(){
   if(!window._binLoadOk){showToast('Ricarica la pagina prima','err');return;}
   setSyncStatus('loading','Salvataggio...');
-  jbPut(_buildSyncBody())
-  .then(function(r){if(r.ok)setSyncStatus('ok','Salvato ✓');else setSyncStatus('err','Errore');})
+  var _data=_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}'));
+  var _users=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
+  _fbRef.update({proUsers:_users, proData:_data})
+  .then(function(){setSyncStatus('ok','Salvato ✓');})
   .catch(function(){setSyncStatus('err','Errore connessione');});
 }
 
@@ -2219,9 +2181,9 @@ function spinWheel(){
   d.lastWheel=Date.now();
   saveMyData(d);
 
-  // Fire-and-forget su JSONBin (non blocca)
+  // Fire-and-forget su Firebase (non blocca)
   setTimeout(function(){
-    jbPut(_buildSyncBody()).catch(function(){});
+    _fbRef.update({proData:_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}')),proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}')}).catch(function(){});
   }, 0);
 
   // Calcola premio
@@ -2300,9 +2262,8 @@ async function refreshPro(){
   if(window._lastRefreshPro&&(_now-window._lastRefreshPro)<15000) return;
   window._lastRefreshPro=_now;
   try {
-    var res=await jbGet();
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    var data=(await res.json()).record;
+    var snap=await _fbRef.once('value');
+    var data=snap.val()||{};
     // FIX 7: Aggiorna anche matches/news (prima mancava)
     if(data.matches&&data.matches.length) matches=data.matches;
     if(data.matchesF&&data.matchesF.length) matchesF=data.matchesF;
@@ -2311,11 +2272,11 @@ async function refreshPro(){
     rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();
     if(data.proUsers){
       var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
-      // JSONBin vince per credenziali, aggiungi solo utenti solo locali
+      // Firebase vince per credenziali
       localStorage.setItem('sac_pro_users',JSON.stringify(Object.assign({},localU,data.proUsers)));
     }
     if(data.proData){
-      // JSONBin è sempre la fonte di verità per tutti gli utenti
+      // Firebase è la fonte di verità
       var serverD=data.proData;
       var localD=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
       var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
@@ -2342,7 +2303,7 @@ async function refreshPro(){
         // Utente vecchio non su server → carica da locale e uploada subito
         serverD[sess.username]=localD[sess.username];
         localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
-        jbPut(_buildSyncBody()).catch(function(){});
+        fbWritePath('proData', serverD);
         return;
       }
       localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
@@ -2354,7 +2315,7 @@ async function refreshPro(){
 }
 function resolveMyBets(){
   // Controlla e paga le scommesse dell'utente corrente
-  // usando i risultati attuali in matches/matchesF (caricati da JSONBin)
+  // usando i risultati attuali in matches/matchesF (caricati da Firebase)
   var d=getMyData(); if(!d||!d.storia||!d.storia.length) return;
   var changed=false, winners=0;
   d.storia.forEach(function(bet){
@@ -2412,13 +2373,28 @@ function proAdminDeleteUser(username){
     showToast('🗑️ @'+username+' eliminato!');
     renderProAdmin();
     renderPronostici();
-    // Sync immediato su JSONBin
+    // Sync immediato su Firebase
     _syncProNow();
   } catch(e){ showToast('Errore eliminazione!','err'); }
 }
 function _delUser(i){
   if(!window._pau||!window._pau[i]){showToast('Errore','err');return;}
   proAdminDeleteUser(window._pau[i]);
+}
+
+function _resetUser(idx){
+  var uname=window._pau[idx];
+  if(!uname)return;
+  if(!confirm('Resettare @'+uname+'?'))return;
+  var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+  if(!all[uname])return;
+  all[uname].tokens=300;all[uname].storia=[];all[uname].bets=0;all[uname].lastWheel=null;all[uname].resetAt=Date.now();
+  localStorage.setItem('sac_pro_data',JSON.stringify(all));
+  setSyncStatus('loading','Reset...');
+  fbWritePath('proData/'+uname, all[uname])
+  .then(function(){setSyncStatus('ok','Reset @'+uname+'!');showToast('Account @'+uname+' resettato!');})
+  .catch(function(){setSyncStatus('err','Errore rete');});
+  renderProAdmin();
 }
 
 function renderProAdmin(){
