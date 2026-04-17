@@ -576,6 +576,15 @@ function fbWritePath(path, data){
 function fbUpdatePath(path, data){
   return _fbRef.child(path).update(data).catch(function(e){ console.error('Firebase update error:',path,e); });
 }
+// Sanitizza chiavi oggetto per Firebase (no . # $ / [ ])
+function _fbSafe(obj){
+  if(!obj||typeof obj!=='object'||Array.isArray(obj)) return obj;
+  var out={};
+  Object.keys(obj).forEach(function(k){
+    out[k.replace(/[.#$/\[\]]/g,'_')]=obj[k];
+  });
+  return out;
+}
 
 // ── LISTENER REALTIME ──
 var _fbFirstLoad = true;
@@ -1280,7 +1289,7 @@ document.addEventListener('visibilitychange', function(){
     var sess=JSON.parse(localStorage.getItem('sac_pro_session')||'null');
     if(sess && sess.username){
       var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
-      if(all[sess.username]) fbWritePath('proData/'+sess.username, all[sess.username]);
+      if(all[sess.username]) fbWritePath('proData/'+sess.username.replace(/[.#$/\[\]]/g,'_'), all[sess.username]);
     }
   }
 });
@@ -1331,12 +1340,12 @@ var expandedStoria={};
 function getUsers(){return JSON.parse(localStorage.getItem('sac_pro_users')||'{}');}
 function saveUsers(u){
   localStorage.setItem('sac_pro_users',JSON.stringify(u));
-  fbWritePath('proUsers', u);
+  fbWritePath('proUsers', _fbSafe(u));
 }
 function getAllData(){return JSON.parse(localStorage.getItem('sac_pro_data')||'{}');}
 function saveAllData(d){
   localStorage.setItem('sac_pro_data',JSON.stringify(d));
-  fbWritePath('proData', _compressProData(d));
+  fbWritePath('proData', _compressProData(_fbSafe(d)));
 }
 
 var _syncProTimer=null;
@@ -1369,7 +1378,7 @@ function _syncPro(){
   _syncProTimer=setTimeout(function(){
     var _data=_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}'));
     var _users=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
-    _fbRef.update({ proUsers:_users, proData:_data }).catch(function(e){console.error('syncPro error:',e);});
+    _fbRef.update({ proUsers:_fbSafe(_users), proData:_fbSafe(_data) }).catch(function(e){console.error('syncPro error:',e);});
   },2000);
 }
 function getProSession(){return JSON.parse(localStorage.getItem('sac_pro_session')||'null');}
@@ -1386,11 +1395,11 @@ function saveMyData(d){
   var sess=getProSession();if(!sess) return;
   var all=getAllData();all[sess.username]=d;
   localStorage.setItem('sac_pro_data',JSON.stringify(all));
-  // Scrivi SOLO i dati di questo utente (non tutti!)
   var compressed=Object.assign({},d);
   if(compressed.storia&&compressed.storia.length>30) compressed.storia=compressed.storia.slice(-30);
   delete compressed._tmp;
-  fbWritePath('proData/'+sess.username, compressed);
+  var safeKey=sess.username.replace(/[.#$/\[\]]/g,'_');
+  fbWritePath('proData/'+safeKey, compressed);
 }
 
 function animateTokens(amount){
@@ -1502,8 +1511,19 @@ function _triggerImport(){
 function _doImport(d){
   try {
     window._binLoadOk=true;
-    // Disabilita listener realtime durante import (evita che sovrascriva i dati nuovi)
     window._importingBackup=true;
+    // Sanitizza chiavi per Firebase (no . # $ / [ ])
+    function _fbSanitizeKeys(obj){
+      if(!obj||typeof obj!=='object') return obj;
+      var out={};
+      Object.keys(obj).forEach(function(k){
+        var safe=k.replace(/[.#$/\[\]]/g,'_');
+        out[safe]=obj[k];
+      });
+      return out;
+    }
+    if(d.proData) d.proData=_fbSanitizeKeys(d.proData);
+    if(d.proUsers) d.proUsers=_fbSanitizeKeys(d.proUsers);
     if(d.proData) localStorage.setItem('sac_pro_data',JSON.stringify(d.proData));
     if(d.proUsers) localStorage.setItem('sac_pro_users',JSON.stringify(d.proUsers));
     if(d.matches&&d.matches.length) matches=d.matches;
@@ -1515,7 +1535,7 @@ function _doImport(d){
     var body={
       matches:matches, matchesF:matchesF,
       playerImages:playerImages||{}, news:newsList||[],
-      proUsers:d.proUsers||{}, proData:d.proData||{}
+      proUsers:_fbSafe(d.proUsers||{}), proData:_fbSafe(d.proData||{})
     };
     _fbRef.set(body).then(function(){
       window._importingBackup=false;
@@ -1579,7 +1599,7 @@ function resetAllAccounts(){
   });
   localStorage.setItem('sac_pro_data',JSON.stringify(all));
   setSyncStatus('loading','Reset in corso...');
-  fbWritePath('proData', all)
+  fbWritePath('proData', _fbSafe(all))
   .then(function(){setSyncStatus('ok','Reset completato ✓');showToast('✅ '+count+' account resettati a 300 token!');})
   .catch(function(){setSyncStatus('err','Errore connessione');});
   renderProAdmin();
@@ -1591,7 +1611,7 @@ function _syncProNow(){
   setSyncStatus('loading','Salvataggio...');
   var _data=_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}'));
   var _users=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
-  _fbRef.update({proUsers:_users, proData:_data})
+  _fbRef.update({proUsers:_fbSafe(_users), proData:_fbSafe(_data)})
   .then(function(){setSyncStatus('ok','Salvato ✓');})
   .catch(function(){setSyncStatus('err','Errore connessione');});
 }
@@ -1621,8 +1641,8 @@ function sanitize(str){
 function validateUsername(u){
   if(!u||u.length<3) return 'Username minimo 3 caratteri';
   if(u.length>20) return 'Username massimo 20 caratteri';
-  if(!/^[a-zA-Z0-9_.\-]+$/.test(u)) return 'Solo lettere, numeri, _ . -';
-  if(/^[._\-]/.test(u)||/[._\-]$/.test(u)) return 'Non iniziare/finire con . _ -';
+  if(!/^[a-zA-Z0-9_\-]+$/.test(u)) return 'Solo lettere, numeri, _ e -';
+  if(/^[_\-]/.test(u)||/[_\-]$/.test(u)) return 'Non iniziare/finire con _ o -';
   return null; // ok
 }
 
@@ -2195,7 +2215,7 @@ function spinWheel(){
 
   // Fire-and-forget su Firebase (non blocca)
   setTimeout(function(){
-    _fbRef.update({proData:_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}')),proUsers:JSON.parse(localStorage.getItem('sac_pro_users')||'{}')}).catch(function(){});
+    _fbRef.update({proData:_fbSafe(_compressProData(JSON.parse(localStorage.getItem('sac_pro_data')||'{}'))),proUsers:_fbSafe(JSON.parse(localStorage.getItem('sac_pro_users')||'{}'))}).catch(function(){});
   }, 0);
 
   // Calcola premio
@@ -2315,7 +2335,7 @@ async function refreshPro(){
         // Utente vecchio non su server → carica da locale e uploada subito
         serverD[sess.username]=localD[sess.username];
         localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
-        fbWritePath('proData', serverD);
+        fbWritePath('proData', _fbSafe(serverD));
         return;
       }
       localStorage.setItem('sac_pro_data',JSON.stringify(serverD));
@@ -2403,7 +2423,7 @@ function _resetUser(idx){
   all[uname].tokens=300;all[uname].storia=[];all[uname].bets=0;all[uname].lastWheel=null;all[uname].resetAt=Date.now();
   localStorage.setItem('sac_pro_data',JSON.stringify(all));
   setSyncStatus('loading','Reset...');
-  fbWritePath('proData/'+uname, all[uname])
+  fbWritePath('proData/'+uname.replace(/[.#$/\[\]]/g,'_'), all[uname])
   .then(function(){setSyncStatus('ok','Reset @'+uname+'!');showToast('Account @'+uname+' resettato!');})
   .catch(function(){setSyncStatus('err','Errore rete');});
   renderProAdmin();
