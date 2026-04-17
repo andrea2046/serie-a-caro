@@ -582,6 +582,8 @@ var _fbFirstLoad = true;
 _fbRef.on('value', function(snap){
   var data = snap.val();
   if(!data) return;
+  // Skip se stiamo importando un backup (evita race condition)
+  if(window._importingBackup) return;
   // Aggiorna dati globali
   if(data.matches && data.matches.length) matches = data.matches;
   if(data.matchesF && data.matchesF.length) matchesF = data.matchesF;
@@ -1500,22 +1502,32 @@ function _triggerImport(){
 function _doImport(d){
   try {
     window._binLoadOk=true;
+    // Disabilita listener realtime durante import (evita che sovrascriva i dati nuovi)
+    window._importingBackup=true;
     if(d.proData) localStorage.setItem('sac_pro_data',JSON.stringify(d.proData));
     if(d.proUsers) localStorage.setItem('sac_pro_users',JSON.stringify(d.proUsers));
     if(d.matches&&d.matches.length) matches=d.matches;
     if(d.matchesF&&d.matchesF.length) matchesF=d.matchesF;
     if(d.news) newsList=d.news;
     if(d.playerImages) playerImages=d.playerImages;
-    try{localStorage.setItem('sac_fb_cache',JSON.stringify({matches:matches,matchesF:matchesF,playerImages:{},news:[],ts:Date.now()}));}catch(e){}
     setSyncStatus('loading','Ripristino...');
-    _fbRef.set(_buildSyncBody()).then(function(){var r={ok:true};
-      if(r.ok){
-        setSyncStatus('ok','Ripristino completato \u2713');
-        showToast('\u2705 Backup ripristinato! '+Object.keys(d.proData||{}).length+' utenti');
-        rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderProAdmin();renderPronostici();
-      } else {setSyncStatus('err','Errore upload');showToast('Errore sync server','err');}
-    }).catch(function(){setSyncStatus('err','Errore rete');showToast('Dati locali ok, errore rete','err');});
-  } catch(e){showToast('Errore: '+e.message,'err');}
+    // Scrivi TUTTO su Firebase in un colpo solo
+    var body={
+      matches:matches, matchesF:matchesF,
+      playerImages:playerImages||{}, news:newsList||[],
+      proUsers:d.proUsers||{}, proData:d.proData||{}
+    };
+    _fbRef.set(body).then(function(){
+      window._importingBackup=false;
+      setSyncStatus('ok','Ripristino completato ✓');
+      showToast('✅ Backup ripristinato! '+Object.keys(d.proData||{}).length+' utenti');
+      try{rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderProAdmin();renderPronostici();}catch(e){}
+    }).catch(function(e){
+      window._importingBackup=false;
+      setSyncStatus('err','Errore Firebase: '+e.message);
+      showToast('Errore: '+e.message,'err');
+    });
+  } catch(e){window._importingBackup=false;showToast('Errore: '+e.message,'err');}
 }
 
 function _confirmReset(){
@@ -2734,6 +2746,7 @@ function _qzStart_(){
   for(var i=0;i<4;i++){var d=document.createElement('div');d.id='_qzd_'+i;d.style.cssText='width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.1);transition:all .2s';dots.appendChild(d);}
   document.getElementById('_qzResult_').style.display='none';
   ['_qzCat_','_qzNum_','_qzQ_','_qzOpts_','_qzFb_','_qzTimerNum_'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='';});
+  document.getElementById('_qzModal_').style.display='flex';
   _qzLoadQ_();
 }
 function _qzLoadQ_(){
@@ -2804,17 +2817,16 @@ function _qzShowResult_(){
 }
 
 function openQuizGame(){
-  var iframe=document.getElementById('quizIframe');
-  var src=document.getElementById('quizSrc').innerHTML;
-  iframe.srcdoc=src;
-  document.getElementById('quizModal').style.display='flex';
+  // Controlla login
+  var d=getMyData();
+  if(!d){showToast('Devi essere loggato!','err');return;}
+  // Limite 24h
+  if(d.lastQuiz&&(Date.now()-d.lastQuiz)<86400000){
+    showToast('Hai già fatto il quiz oggi!','err');return;
+  }
   document.getElementById('wheelPopup').style.display='none';
+  _qzStart_();
 }
-window.addEventListener('message',function(e){
-  if(!e.data)return;
-  if(e.data.type==='quizDone'){document.getElementById('quizModal').style.display='none';if(e.data.tokens>0){addTokens(e.data.tokens);renderPronostici();showToast('Quiz! +'+e.data.tokens+' token!');}}
-  if(e.data.type==='quizClose')document.getElementById('quizModal').style.display='none';
-});
 var _rgShot=false,_rgChosen=null;
 var _rgBP={l:{x:.22,y:.82},c:{x:.50,y:.22},r:{x:.78,y:.82}};
 var _rgKD={l:{xFrac:.14,deg:-38,arms:false},c:{xFrac:.50,deg:0,arms:true},r:{xFrac:.82,deg:38,arms:false}};
