@@ -593,6 +593,8 @@ _fbRef.on('value', function(snap){
   if(!data) return;
   // Skip se stiamo importando un backup (evita race condition)
   if(window._importingBackup) return;
+  // Skip se stiamo salvando una partita (evita che il listener sovrascriva i dati appena modificati)
+  if(window._savingMatch) return;
   // Aggiorna dati globali
   if(data.matches && data.matches.length) matches = data.matches;
   if(data.matchesF && data.matchesF.length) matchesF = data.matchesF;
@@ -1095,6 +1097,7 @@ async function uploadPhoto(e,name) {
 }
 
 async function saveMatch() {
+  window._savingMatch=true;
   const {matches}=activeData(), m=matches.find(x=>x.id===editMatch)
   m.g1=parseInt(g1.value)||0; m.g2=parseInt(g2.value)||0
   m.mvp=mvp.value.trim(); m.played=true; m.locked=false // rimuovi lock dopo risultato
@@ -1103,6 +1106,7 @@ async function saveMatch() {
   renderMatches(); renderTable(); renderScorers()
   resolveBets(m.id, m.g1, m.g2, m.mvp, activeLeague==='F')
   const ok=await binSave()
+  window._savingMatch=false;
   if(ok) showToast("✅ Salvato!")
   else showToast("Errore salvataggio!","err")
 }
@@ -1113,17 +1117,19 @@ function toggleMatchLock(matchId, isF){
   if(!m) return;
   m.locked=!m.locked;
   renderMatches();
-  binSave();
+  window._savingMatch=true;
+  binSave().then(function(){window._savingMatch=false;});
   showToast(m.locked?'🔒 Scommesse bloccate':'🔓 Scommesse aperte');
 }
 
 function deleteResult() {
   // no confirm
+  window._savingMatch=true;
   const {matches}=activeData(), m=matches.find(x=>x.id===editMatch)
   m.g1=null; m.g2=null; m.mvp=""; m.played=false; m.scorersA=[]; m.scorersB=[]
   rebuildScorers(); matchPop.style.display='none'
   renderMatches(); renderTable(); renderScorers()
-  binSave().then(ok=>{if(ok) showToast("✅ Risultato eliminato!")})
+  binSave().then(ok=>{window._savingMatch=false;if(ok) showToast("✅ Risultato eliminato!")})
 }
 
 function setNewsLeague(l) { pendingNewsLeague=l; document.getElementById('nlBtnM').classList.toggle('active',l==='M'); document.getElementById('nlBtnF').classList.toggle('active',l==='F') }
@@ -1186,14 +1192,18 @@ async function publishNews() {
   if(editingNewsId){const n=newsList.find(x=>x.id===editingNewsId);n.title=title;n.body=document.getElementById('newsBody').value.trim();n.league=pendingNewsLeague;n.pinned=pendingPin;n.poll=getPollData();if(pendingMediaB64!==n.media){n.media=pendingMediaB64;n.mediaType=pendingMediaType}}
   else{newsList.push({id:Date.now(),ts:Date.now(),title,body:document.getElementById('newsBody').value.trim(),media:pendingMediaB64,mediaType:pendingMediaType,league:pendingNewsLeague,pinned:pendingPin,poll:getPollData()})}
   newsPop.style.display='none'; renderNews(); showToast("📢 Pubblicato!")
+  window._savingMatch=true;
   await binSave()
+  window._savingMatch=false;
 }
 
 async function deleteNews() {
   if(!editingNewsId||!confirm('Eliminare questa notizia?')) return
   newsList=newsList.filter(x=>x.id!==editingNewsId)
   newsPop.style.display='none'; renderNews(); showToast("🗑️ Eliminata")
+  window._savingMatch=true;
   await binSave()
+  window._savingMatch=false;
 }
 
 function voteNewsPoll(newsId,optIdx) {
@@ -1878,7 +1888,8 @@ function calcQ(a,b,def,mList){
     qU35:r2(Math.min(3.50,1/pU35)),
     qO45:r2(Math.min(3.50,1/pO45)),
     qU45:r2(Math.min(3.50,1/pU45)),
-    qBN:r2(Math.max(2.00,Math.min(4.00,1/pBN)))
+    qBN:r2(Math.max(2.00,Math.min(4.00,1/pBN))),
+    qBS:r2(Math.max(1.50,Math.min(3.50,1/(1-pBN))))
   };
 }
 // ── SELEZIONE E SCHEDINA ──
