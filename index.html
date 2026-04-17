@@ -616,7 +616,7 @@ _fbRef.on('value', function(snap){
   window._binLoadOk = true;
   // Ri-renderizza (ma non al primo load, lo fa initApp)
   if(!_fbFirstLoad){
-    try{ rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderPronostici(); }catch(e){}
+    try{ _applySchedule();rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderPronostici(); }catch(e){}
   }
   _fbFirstLoad = false;
   setSyncStatus('ok','Connesso ✓');
@@ -656,6 +656,89 @@ function generateMatches(def) {
   return out
 }
 
+// ── CALENDARIO PARTITE ──
+var _schedule=[
+  {d:'2026-04-22',t:'15:00',a:'🇵🇹 5AC',b:'🇺🇸 2CC (1)',l:'F'},
+  {d:'2026-04-22',t:'16:00',a:'🇲🇽 1AC',b:'🇰🇷 3BS',l:'M'},
+  {d:'2026-04-22',t:'17:00',a:'🇲🇦 2AC',b:'🇪🇸 1C',l:'M'},
+  {d:'2026-04-22',t:'18:00',a:'🇧🇷 5CC',b:'🇪🇬 3CC',l:'M'},
+  {d:'2026-04-23',t:'15:00',a:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 3ES',b:'🇲🇦 2AC',l:'F'},
+  {d:'2026-04-23',t:'16:00',a:'🇪🇸 1C',b:'🇧🇪 3AC',l:'M'},
+  {d:'2026-04-23',t:'17:00',a:'🇩🇪 5BC',b:'🇺🇸 2CC (1)',l:'F'},
+  {d:'2026-04-23',t:'18:00',a:'🇳🇱 4CS',b:'🇺🇾 4BC',l:'M'},
+  {d:'2026-04-24',t:'15:00',a:'🇧🇷 5CC',b:'🇲🇦 2AC',l:'F'},
+  {d:'2026-04-24',t:'16:00',a:'🇸🇦 4AM',b:'🇳🇴 3DE',l:'M'},
+  {d:'2026-04-24',t:'17:00',a:'🇵🇹 5AC',b:'🇩🇪 5BC',l:'F'},
+  {d:'2026-04-24',t:'18:00',a:'🇵🇹 5AC',b:'🇪🇨 5DOI',l:'M'},
+  {d:'2026-04-27',t:'15:00',a:'🇰🇷 3BS',b:'🇨🇴 5AM',l:'F'},
+  {d:'2026-04-27',t:'16:00',a:'🇦🇷 5DE',b:'🇪🇸 1C',l:'M'},
+  {d:'2026-04-27',t:'17:00',a:'🇫🇷 4AC',b:'🇨🇦 2CS',l:'F'},
+  {d:'2026-04-27',t:'18:00',a:'🇺🇾 4BC',b:'🇯🇵 1EE',l:'M'},
+  {d:'2026-04-28',t:'15:00',a:'🇮🇹 4DE (1)',b:'🇰🇷 3BS',l:'M'},
+  {d:'2026-04-28',t:'16:00',a:'🇳🇿 2AS',b:'🇺🇸 2CC (1)',l:'F'},
+  {d:'2026-04-28',t:'17:00',a:'🇳🇱 4CS',b:'🇸🇦 4AM',l:'M'},
+  {d:'2026-04-28',t:'18:00',a:'🇦🇺 5AS',b:'🇧🇷 5CC',l:'F'},
+  {d:'2026-04-29',t:'15:00',a:'🇳🇱 4CS',b:'🇨🇦 2CS',l:'F'},
+  {d:'2026-04-29',t:'16:00',a:'🇳🇴 3DE',b:'🇺🇾 4BC',l:'M'},
+  {d:'2026-04-29',t:'17:00',a:'🇨🇴 5AM',b:'🇺🇾 4BC',l:'F'},
+  {d:'2026-04-29',t:'18:00',a:'🇵🇹 5AC',b:'🇳🇿 2AS',l:'F'},
+  {d:'2026-04-29',t:'19:00',a:'🇦🇷 5DE',b:'🇲🇦 2AC',l:'M'},
+  {d:'2026-04-30',t:'15:00',a:'🇧🇷 5CC',b:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 3ES',l:'F'},
+  {d:'2026-04-30',t:'16:00',a:'🇮🇹 4DE (1)',b:'🇨🇭 2DE',l:'M'},
+  {d:'2026-04-30',t:'17:00',a:'🇫🇷 4AC',b:'🇦🇹 2CC (2)',l:'F'},
+  {d:'2026-04-30',t:'18:00',a:'🇧🇪 3AC',b:'🇲🇦 2AC',l:'M'},
+  {d:'2026-05-02',t:'15:00',a:'🇸🇦 4AM',b:'🇯🇵 1EE',l:'M'},
+  {d:'2026-05-02',t:'16:00',a:'🇪🇬 3CC',b:'🇪🇨 5DOI',l:'M'},
+  {d:'2026-05-02',t:'17:00',a:'🇨🇦 2CS',b:'🇦🇹 2CC (2)',l:'F'},
+  {d:'2026-05-02',t:'18:00',a:'🇫🇷 4AC',b:'🇳🇱 4CS',l:'F'},
+  {d:'2026-05-02',t:'19:00',a:'🇳🇱 4CS',b:'🇳🇴 3DE',l:'M'},
+  {d:'2026-05-04',t:'15:00',a:'🇵🇦 2EE',b:'🇪🇸 1C',l:'M'},
+  {d:'2026-05-04',t:'16:00',a:'🇩🇪 5BC',b:'🇳🇿 2AS',l:'F'},
+  {d:'2026-05-04',t:'17:00',a:'🇮🇹 4DE (1)',b:'🇭🇷 4DE (2)',l:'M'},
+  {d:'2026-05-05',t:'15:00',a:'🇮🇹 4DE (1)',b:'🇲🇽 1AC',l:'M'},
+  {d:'2026-05-05',t:'16:00',a:'🇦🇺 5AS',b:'🇲🇦 2AC',l:'F'},
+  {d:'2026-05-05',t:'17:00',a:'🇰🇷 3BS',b:'🇭🇷 4DE (2)',l:'M'},
+  {d:'2026-05-06',t:'15:00',a:'🇳🇴 3DE',b:'🇯🇵 1EE',l:'M'},
+  {d:'2026-05-06',t:'16:00',a:'🇰🇷 3BS',b:'🇺🇾 4BC',l:'F'},
+  {d:'2026-05-06',t:'17:00',a:'🇵🇹 5AC',b:'🇧🇷 5CC',l:'M'},
+  {d:'2026-05-07',t:'15:00',a:'🇨🇭 2DE',b:'🇰🇷 3BS',l:'M'},
+  {d:'2026-05-07',t:'16:00',a:'🇦🇺 5AS',b:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 3ES',l:'F'},
+  {d:'2026-05-07',t:'17:00',a:'🇵🇹 5AC',b:'🇪🇬 3CC',l:'M'},
+  {d:'2026-05-08',t:'15:00',a:'🇳🇱 4CS',b:'🇦🇹 2CC (2)',l:'F'},
+  {d:'2026-05-08',t:'16:00',a:'🇦🇷 5DE',b:'🇧🇪 3AC',l:'M'},
+  {d:'2026-05-08',t:'17:00',a:'🇨🇭 2DE',b:'🇲🇽 1AC',l:'M'},
+  {d:'2026-05-11',t:'15:00',a:'🇧🇪 3AC',b:'🇵🇦 2EE',l:'M'},
+  {d:'2026-05-11',t:'16:00',a:'🇨🇭 2DE',b:'🇲🇽 1AC',l:'M'},
+  {d:'2026-05-11',t:'17:00',a:'🇭🇷 4DE (2)',b:'🇨🇭 2DE',l:'M'},
+  {d:'2026-05-12',t:'15:00',a:'🇦🇷 5DE',b:'🇵🇦 2EE',l:'M'},
+  {d:'2026-05-12',t:'16:00',a:'🇭🇷 4DE (2)',b:'🇲🇽 1AC',l:'M'},
+  {d:'2026-05-12',t:'17:00',a:'🇺🇾 4BC',b:'🇸🇦 4AM',l:'M'},
+  {d:'2026-05-13',t:'15:00',a:'🇳🇱 4CS',b:'🇯🇵 1EE',l:'M'},
+  {d:'2026-05-13',t:'16:00',a:'🇲🇦 2AC',b:'🇵🇦 2EE',l:'M'},
+  {d:'2026-05-13',t:'17:00',a:'🇪🇨 5DOI',b:'🇧🇷 5CC',l:'M'},
+];
+function _applySchedule(){
+  _schedule.forEach(function(s){
+    var arr=s.l==='M'?matches:matchesF;
+    var m=arr.find(function(x){
+      return (x.a===s.a && x.b===s.b) || (x.a===s.b && x.b===s.a);
+    });
+    if(m){
+      m.date=s.d;
+      m.time=s.t;
+    }
+  });
+  // Ordina partite non giocate per data/ora
+}
+
+
+function _fmtDate(ds){
+  if(!ds) return '';
+  var d=new Date(ds+'T00:00:00');
+  var giorni=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  var mesi=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  return giorni[d.getDay()]+' '+d.getDate()+' '+mesi[d.getMonth()];
+}
 function activeData() {
   return activeLeague === "M"
     ? {def:groupsDef, matches, scorers, mvpCount}
@@ -990,7 +1073,7 @@ function matchRowHTML(x, isF) {
     :(admin?`<div style="text-align:center;padding:3px 0 6px"><button onclick="event.stopPropagation();toggleMatchLock(${x.id},${_isF})" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px">🔓 Blocca scommesse</button></div>`:'');
   return `<div><div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill score-pill-vs" data-pollid="${x.id}" onclick="event.stopPropagation();_openPoll(${x.id})" style="${uv?'border-color:'+c+'44;background:'+c+'10':''}">
     ${uv?`<div style="font-family:'Anton',sans-serif;font-size:16px;color:${c};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`:`<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`}
-  </div><div class="match-team-name away">${x.b}</div></div>${statusBar}</div>`
+  </div><div class="match-team-name away">${x.b}</div></div>${x.date&&!x.played?'<div style="text-align:center;padding:0 0 6px;font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.5px">📅 '+_fmtDate(x.date)+' · ⏰ '+x.time+'</div>':''}${statusBar}</div>`
 }
 
 function toggleMore(gid) {
@@ -1006,7 +1089,11 @@ function renderMatches() {
   Object.keys(def).forEach(g=>{
     const all=matches.filter(x=>x.group===g)
     const played=all.filter(x=>x.played),notPlayed=all.filter(x=>!x.played)
-    const shuffled=[...notPlayed].sort((a,b)=>((a.id*7+g.charCodeAt(0)*3)%11)-((b.id*5+g.charCodeAt(0)*7)%11))
+    const shuffled=[...notPlayed].sort((a,b)=>{
+      if(a.date&&b.date){var da=a.date+a.time,db=b.date+b.time;if(da!==db)return da<db?-1:1;}
+      if(a.date&&!b.date)return -1;if(!a.date&&b.date)return 1;
+      return ((a.id*7+g.charCodeAt(0)*3)%11)-((b.id*5+g.charCodeAt(0)*7)%11);
+    })
     const sorted=[...played,...shuffled]
     const gid='grp_'+activeLeague+'_'+g
     html+=`<div class="card"><div class="card-head"><div class="group-badge">${g}</div><div class="card-title">Girone ${g}</div><span style="margin-left:auto;font-size:10px;color:var(--muted)">${played.length}/${all.length}</span></div><div id="${gid}">${sorted.slice(0,4).map(matchRowHTML).join("")}</div>`
@@ -1274,6 +1361,7 @@ async function initApp() {
   try {
     setStatus('Connessione...')
     await binLoad()
+    _applySchedule();
     rebuildScorers(); renderTable(); renderMatches(); renderScorers(); renderNews()
     setStatus('Pronto!')
     await new Promise(r=>setTimeout(r,400))
