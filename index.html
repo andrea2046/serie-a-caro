@@ -1018,9 +1018,9 @@ function renderMatches() {
 
 function rebuildScorers() {
   scorers={};mvpCount={}
-  matches.forEach(m=>{if(!m.played)return;[...m.scorersA,...m.scorersB].forEach(s=>{const k=s.name.toLowerCase();if(!scorers[k])scorers[k]={name:s.name,goals:0};scorers[k].goals+=s.goals});if(m.mvp){const k=m.mvp.toLowerCase();mvpCount[k]=(mvpCount[k]||0)+1}})
+  matches.forEach(m=>{if(!m.played)return;[...(m.scorersA||[]),...(m.scorersB||[])].forEach(s=>{const k=s.name.toLowerCase();if(!scorers[k])scorers[k]={name:s.name,goals:0};scorers[k].goals+=s.goals});if(m.mvp){const k=m.mvp.toLowerCase();mvpCount[k]=(mvpCount[k]||0)+1}})
   scorersF={};mvpCountF={}
-  matchesF.forEach(m=>{if(!m.played)return;[...m.scorersA,...m.scorersB].forEach(s=>{const k=s.name.toLowerCase();if(!scorersF[k])scorersF[k]={name:s.name,goals:0};scorersF[k].goals+=s.goals});if(m.mvp){const k=m.mvp.toLowerCase();mvpCountF[k]=(mvpCountF[k]||0)+1}})
+  matchesF.forEach(m=>{if(!m.played)return;[...(m.scorersA||[]),...(m.scorersB||[])].forEach(s=>{const k=s.name.toLowerCase();if(!scorersF[k])scorersF[k]={name:s.name,goals:0};scorersF[k].goals+=s.goals});if(m.mvp){const k=m.mvp.toLowerCase();mvpCountF[k]=(mvpCountF[k]||0)+1}})
 }
 
 function renderScorers() {
@@ -1038,7 +1038,7 @@ function openMatch(id) {
 function openMatchView(m) {
   changePage('matchView')
   let html=`<button class="btn btn-back" onclick="changePage('risultati')">← Torna</button><div class="card"><div class="score-hero"><div class="score-hero-num">${m.played?m.g1+' - '+m.g2:'vs'}</div><div class="score-hero-teams"><span>${m.a}</span><span>${m.b}</span></div></div>${m.mvp?`<div style="padding:10px 14px 4px"><div class="mvp-pill">⭐ MVP: ${m.mvp}</div></div>`:''}</div>`
-  ;[['A',m.scorersA,m.a],['B',m.scorersB,m.b]].forEach(([,list,name])=>{html+=`<div class="card"><div class="card-head"><div class="group-badge">⚽</div><div class="card-title">Marcatori ${name}</div></div>${list.length?list.map(s=>{const i=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);return `<div class="scorer-item"><div class="scorer-avatar">${playerImages[s.name]?`<img src="${playerImages[s.name]}" alt="">`:i}</div><div class="scorer-info"><div class="scorer-name">${s.name}</div><div class="scorer-meta"><span class="meta-goals">⚽ ${s.goals}</span></div></div></div>`}).join(""):`<div class="empty-state" style="padding:16px"><div class="empty-text">Nessun marcatore</div></div>`}</div>`})
+  ;[['A',m.scorersA||[],m.a],['B',m.scorersB||[],m.b]].forEach(([,list,name])=>{html+=`<div class="card"><div class="card-head"><div class="group-badge">⚽</div><div class="card-title">Marcatori ${name}</div></div>${list.length?list.map(s=>{const i=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);return `<div class="scorer-item"><div class="scorer-avatar">${playerImages[s.name]?`<img src="${playerImages[s.name]}" alt="">`:i}</div><div class="scorer-info"><div class="scorer-name">${s.name}</div><div class="scorer-meta"><span class="meta-goals">⚽ ${s.goals}</span></div></div></div>`}).join(""):`<div class="empty-state" style="padding:16px"><div class="empty-text">Nessun marcatore</div></div>`}</div>`})
   matchView.innerHTML=html
 }
 
