@@ -189,6 +189,8 @@ select option{background:var(--s2)}
 .badge-m{background:rgba(245,197,24,0.13);color:var(--gold)}
 .badge-f{background:rgba(244,114,182,0.13);color:var(--pink)}
 .news-league-btn{flex:1;padding:9px;border-radius:var(--rs);border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all .18s}
+.oggi-match-row[onclick]:hover{background:rgba(245,197,24,0.08)!important}
+.oggi-match-row[onclick]:active{background:rgba(245,197,24,0.15)!important}
 .news-league-btn#nlBtnM.active{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;border-color:transparent}
 .news-league-btn#nlBtnF.active{background:linear-gradient(135deg,var(--pink),var(--pink2));color:#fff;border-color:transparent}
 .pin-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--gold);background:rgba(245,197,24,0.12);border-radius:20px;padding:2px 8px;letter-spacing:.5px}
@@ -414,12 +416,13 @@ select option{background:var(--s2)}
   <button class="nav-btn" id="navRisultati" onclick="changePage('risultati',this)">Partite</button>
   <button class="nav-btn" id="navMarcatori" onclick="changePage('marcatori',this)">Marcatori</button>
   <button class="nav-btn" id="navPronostici" onclick="changePage('pronostici',this)">BETS</button>
-  <button class="nav-btn" id="navNotizie" onclick="changePage('notizie',this)">News</button>
+  <button class="nav-btn" id="navOggi" onclick="changePage('oggi',this)">Oggi</button>
 </nav>
 <div id="classifica" class="container active"><div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Caricamento...</div></div></div>
 <div id="risultati" class="container"></div>
 <div id="marcatori" class="container"></div>
-<div id="notizie" class="container"></div>
+<div id="oggi" class="container"></div>
+<div id="notizie" class="container" style="display:none"></div>
 <div id="pronostici" class="container"></div>
 <div id="matchView" class="container"></div>
 <div class="popup" id="pollPopup"><div class="popup-sheet" id="pollSheet"><div class="sheet-handle"></div></div></div>
@@ -616,7 +619,7 @@ _fbRef.on('value', function(snap){
   window._binLoadOk = true;
   // Ri-renderizza (ma non al primo load, lo fa initApp)
   if(!_fbFirstLoad){
-    try{ _applySchedule();rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderPronostici(); }catch(e){}
+    try{ _applySchedule();rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderOggi();renderPronostici(); }catch(e){}
   }
   _fbFirstLoad = false;
   setSyncStatus('ok','Connesso ✓');
@@ -865,6 +868,7 @@ function changePage(p, btn) {
     clearInterval(_wheelTimerInterval); _wheelTimerInterval=null;
     clearInterval(_wheelBtnTimerInterval); _wheelBtnTimerInterval=null;
   }
+  if (p==='oggi') renderOggi();
   if (p==='pronostici') {
     renderPronostici();
     var now=Date.now();
@@ -1103,6 +1107,76 @@ function renderMatches() {
   risultati.innerHTML=html
 }
 
+function renderOggi(){
+  var el=document.getElementById('oggi');
+  if(!el) return;
+  // Data odierna in formato YYYY-MM-DD (locale)
+  var now=new Date();
+  var yyyy=now.getFullYear();
+  var mm=String(now.getMonth()+1).padStart(2,'0');
+  var dd=String(now.getDate()).padStart(2,'0');
+  var todayStr=yyyy+'-'+mm+'-'+dd;
+  
+  function _renderLeagueMatches(arr,leagueLabel,gradient,leagueCode){
+    // Filtra: solo partite con data >= oggi, non giocate
+    var upcoming=arr.filter(function(m){return m.date && !m.played && m.date>=todayStr;});
+    upcoming.sort(function(a,b){
+      var da=a.date+a.time, db=b.date+b.time;
+      return da<db?-1:da>db?1:0;
+    });
+    
+    // Raggruppa per data
+    var byDate={};
+    upcoming.forEach(function(m){
+      if(!byDate[m.date]) byDate[m.date]=[];
+      byDate[m.date].push(m);
+    });
+    
+    var dates=Object.keys(byDate).sort();
+    if(dates.length===0){
+      return '<div class="card"><div class="card-head"><div class="card-title">'+leagueLabel+'</div></div><div class="empty-state" style="padding:20px"><div class="empty-text">Nessuna partita in programma</div></div></div>';
+    }
+    
+    var h='<div class="card"><div class="card-head"><div class="card-title">'+leagueLabel+'</div>'+(admin?'<span style="margin-left:auto;font-size:10px;color:var(--gold)">👑 Tocca per gestire</span>':'')+'</div>';
+    dates.slice(0,5).forEach(function(date,idx){
+      var isToday=(date===todayStr);
+      var label=isToday?'🔴 OGGI':_fmtDate(date);
+      h+='<div style="padding:10px 12px;background:'+(isToday?gradient:'rgba(255,255,255,0.03)')+';border-radius:8px;margin:'+(idx===0?'0':'10px')+' 8px 6px;font-family:Anton,sans-serif;font-size:13px;letter-spacing:1.5px;color:'+(isToday?'#000':'var(--muted)')+';font-weight:700">'+label.toUpperCase()+'</div>';
+      byDate[date].forEach(function(m){
+        var clickAction=admin?'onclick="_oggiOpenMatch('+m.id+',\''+leagueCode+'\')" style="cursor:pointer"':'';
+        h+='<div '+clickAction+' class="oggi-match-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);transition:background .15s">'
+          +'<div style="flex:1;font-size:13px;font-weight:600;color:var(--text)">'+m.a+'</div>'
+          +'<div style="display:flex;flex-direction:column;align-items:center;min-width:70px">'
+          +'<div style="font-family:Anton,sans-serif;font-size:14px;color:var(--gold)">'+m.time+'</div>'
+          +'<div style="font-size:9px;color:var(--muted);margin-top:2px">Gir. '+m.group+'</div>'
+          +'</div>'
+          +'<div style="flex:1;font-size:13px;font-weight:600;color:var(--text);text-align:right">'+m.b+'</div>'
+          +'</div>';
+      });
+    });
+    h+='</div>';
+    return h;
+  }
+  
+  var html='<div style="padding:14px">';
+  html+=_renderLeagueMatches(matches,'♂ MASCHILE','linear-gradient(135deg,#f5c518,#d4a00a)','M');
+  html+='<div style="height:14px"></div>';
+  html+=_renderLeagueMatches(matchesF,'♀ FEMMINILE','linear-gradient(135deg,#ff6ec7,#c34897)','F');
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function _oggiOpenMatch(id,league){
+  if(!admin) return;
+  // Switcha alla lega corretta SENZA cambiare pagina
+  if(activeLeague!==league){
+    activeLeague=league;
+    document.getElementById('btnM').classList.toggle('active',league==='M');
+    document.getElementById('btnF').classList.toggle('active',league==='F');
+  }
+  openMatch(id);
+}
+
 function rebuildScorers() {
   scorers={};mvpCount={}
   matches.forEach(m=>{if(!m.played)return;[...(m.scorersA||[]),...(m.scorersB||[])].forEach(s=>{const k=s.name.toLowerCase();if(!scorers[k])scorers[k]={name:s.name,goals:0};scorers[k].goals+=s.goals});if(m.mvp){const k=m.mvp.toLowerCase();mvpCount[k]=(mvpCount[k]||0)+1}})
@@ -1198,7 +1272,7 @@ async function saveMatch() {
   m.mvp=mvp.value.trim(); m.played=true; m.locked=false // rimuovi lock dopo risultato
   m.scorersA=[...tempScorersA]; m.scorersB=[...tempScorersB]
   rebuildScorers(); matchPop.style.display='none'
-  renderMatches(); renderTable(); renderScorers()
+  renderMatches(); renderTable(); renderScorers(); renderOggi()
   resolveBets(m.id, m.g1, m.g2, m.mvp, activeLeague==='F')
   const ok=await binSave()
   setTimeout(function(){window._savingMatch=false;}, 2000);
@@ -1226,7 +1300,7 @@ function deleteResult() {
   const {matches}=activeData(), m=matches.find(x=>x.id===editMatch)
   m.g1=null; m.g2=null; m.mvp=""; m.played=false; m.scorersA=[]; m.scorersB=[]
   rebuildScorers(); matchPop.style.display='none'
-  renderMatches(); renderTable(); renderScorers()
+  renderMatches(); renderTable(); renderScorers(); renderOggi()
   binSave().then(ok=>{setTimeout(function(){window._savingMatch=false;},2000);if(ok) showToast("✅ Risultato eliminato!")})
 }
 
@@ -1368,12 +1442,12 @@ function initTheme(){
 async function initApp() {
   const setStatus=msg=>{const s=document.getElementById('splashStatus');if(s)s.textContent=msg}
   // Firebase realtime: caricamento diretto
-  const safety=setTimeout(()=>{renderMatches();renderTable();renderScorers();renderNews();hideSplash()},5000)
+  const safety=setTimeout(()=>{renderMatches();renderTable();renderScorers();renderNews();renderOggi();hideSplash()},5000)
   try {
     setStatus('Connessione...')
     await binLoad()
     _applySchedule();
-    rebuildScorers(); renderTable(); renderMatches(); renderScorers(); renderNews()
+    rebuildScorers(); renderTable(); renderMatches(); renderScorers(); renderNews(); renderOggi()
     setStatus('Pronto!')
     await new Promise(r=>setTimeout(r,400))
   } catch(e) { setStatus('Modalità offline') }
@@ -1650,7 +1724,7 @@ function _doImport(d){
       window._importingBackup=false;
       setSyncStatus('ok','Ripristino completato ✓');
       showToast('✅ Backup ripristinato! '+Object.keys(d.proData||{}).length+' utenti');
-      try{rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderProAdmin();renderPronostici();}catch(e){}
+      try{rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderOggi();renderProAdmin();renderPronostici();}catch(e){}
     }).catch(function(e){
       window._importingBackup=false;
       setSyncStatus('err','Errore Firebase: '+e.message);
@@ -2411,7 +2485,7 @@ async function refreshPro(){
     if(data.matchesF&&data.matchesF.length) matchesF=data.matchesF;
     if(data.news) newsList=data.news;
     if(data.playerImages) playerImages=data.playerImages;
-    rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();
+    rebuildScorers();renderTable();renderMatches();renderScorers();renderNews();renderOggi();
     if(data.proUsers){
       var localU=JSON.parse(localStorage.getItem('sac_pro_users')||'{}');
       // Firebase vince per credenziali
