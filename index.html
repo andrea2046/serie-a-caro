@@ -1126,60 +1126,98 @@ function renderOggi(){
     return da<db?-1:da>db?1:0;
   });
   
-  // Raggruppa per data
-  var byDate={};
-  allUpcoming.forEach(function(m){
-    if(!byDate[m.date]) byDate[m.date]=[];
-    byDate[m.date].push(m);
-  });
-  var dates=Object.keys(byDate).sort();
+  // Separa partite di oggi vs future
+  var todayMatches=allUpcoming.filter(function(m){return m.date===todayStr;});
+  var futureMatches=allUpcoming.filter(function(m){return m.date>todayStr;});
   
-  if(dates.length===0){
-    el.innerHTML='<div style="padding:14px"><div class="card"><div class="empty-state" style="padding:40px 20px"><div class="empty-icon">📅</div><div class="empty-text">Nessuna partita in programma</div></div></div></div>';
-    return;
+  // Raggruppa future per data
+  var futureByDate={};
+  futureMatches.forEach(function(m){
+    if(!futureByDate[m.date]) futureByDate[m.date]=[];
+    futureByDate[m.date].push(m);
+  });
+  var futureDates=Object.keys(futureByDate).sort();
+  
+  // Helper per renderizzare una singola partita
+  function _matchRow(m){
+    var isM=(m._l==='M');
+    var color=isM?'#3d8ef0':'#ff6ec7';
+    var bg=isM?'rgba(61,142,240,0.06)':'rgba(255,110,199,0.06)';
+    var border=isM?'rgba(61,142,240,0.25)':'rgba(255,110,199,0.25)';
+    var clickAttr=admin?(' onclick="_oggiOpenMatch('+m.id+',\''+m._l+'\')"'):'';
+    var cursorStyle=admin?';cursor:pointer':'';
+    var h='<div style="border-bottom:1px solid rgba(255,255,255,0.04)">';
+    h+='<div class="oggi-match-row"'+clickAttr+' style="display:flex;align-items:center;gap:10px;padding:11px 14px;transition:background .15s'+cursorStyle+'">'
+      +'<div style="width:6px;height:38px;background:'+color+';border-radius:3px;flex-shrink:0"></div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.a+'</div></div>'
+      +'<div style="display:flex;flex-direction:column;align-items:center;min-width:62px;padding:4px 8px;background:'+bg+';border:1px solid '+border+';border-radius:8px">'
+      +'<div style="font-family:Anton,sans-serif;font-size:14px;color:'+color+';line-height:1">'+m.time+'</div>'
+      +'<div style="font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:0.5px">GIR. '+m.group+'</div>'
+      +'</div>'
+      +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.b+'</div></div>'
+      +'</div>';
+    if(admin){
+      if(m.locked){
+        h+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 0 9px"><span style="font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</span><button onclick="event.stopPropagation();toggleMatchLock('+m.id+','+(isM?'false':'true')+');renderOggi()" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:var(--red);padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer">Sblocca</button></div>';
+      } else {
+        h+='<div style="text-align:center;padding:0 0 9px"><button onclick="event.stopPropagation();toggleMatchLock('+m.id+','+(isM?'false':'true')+');renderOggi()" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px">🔓 Blocca scommesse</button></div>';
+      }
+    } else if(m.locked){
+      h+='<div style="text-align:center;padding:0 0 9px;font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</div>';
+    }
+    h+='</div>';
+    return h;
   }
   
   var html='<div style="padding:14px">';
+  
   // Legenda colori
   html+='<div style="display:flex;gap:10px;justify-content:center;margin-bottom:14px;font-size:11px;font-weight:700">'
     +'<div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#3d8ef0;border-radius:50%;display:inline-block"></span><span style="color:#3d8ef0">MASCHILE</span></div>'
     +'<div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#ff6ec7;border-radius:50%;display:inline-block"></span><span style="color:#ff6ec7">FEMMINILE</span></div>'
     +'</div>';
   
-  dates.slice(0,7).forEach(function(date){
-    var isToday=(date===todayStr);
-    var label=isToday?'🔴 OGGI':_fmtDate(date);
-    html+='<div class="card" style="margin-bottom:14px'+(isToday?';border-color:var(--gold)':'')+'">';
-    html+='<div class="card-head" style="'+(isToday?'background:linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.04))':'')+'">'
-      +'<div class="card-title" style="'+(isToday?'color:var(--gold)':'')+'">'+label+'</div>'
-      +'<span style="margin-left:auto;font-size:10px;color:var(--muted)">'+byDate[date].length+' partit'+(byDate[date].length===1?'a':'e')+'</span>'
-      +'</div>';
-    
-    byDate[date].forEach(function(m){
-      var isM=(m._l==='M');
-      var color=isM?'#3d8ef0':'#ff6ec7';
-      var bg=isM?'rgba(61,142,240,0.06)':'rgba(255,110,199,0.06)';
-      var border=isM?'rgba(61,142,240,0.25)':'rgba(255,110,199,0.25)';
-      var clickAttr=admin?(' onclick="_oggiOpenMatch('+m.id+',\''+m._l+'\')"'):'';
-      var cursorStyle=admin?';cursor:pointer':'';
-      html+='<div class="oggi-match-row"'+clickAttr+' style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.04);transition:background .15s'+cursorStyle+'">'
-        // Tag lega
-        +'<div style="width:6px;height:38px;background:'+color+';border-radius:3px;flex-shrink:0"></div>'
-        // Squadra A
-        +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.a+'</div></div>'
-        // Centro: orario + girone
-        +'<div style="display:flex;flex-direction:column;align-items:center;min-width:62px;padding:0 6px;background:'+bg+';border:1px solid '+border+';border-radius:8px;padding:4px 8px">'
-        +'<div style="font-family:Anton,sans-serif;font-size:14px;color:'+color+';line-height:1">'+m.time+'</div>'
-        +'<div style="font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:0.5px">GIR. '+m.group+'</div>'
-        +'</div>'
-        // Squadra B
-        +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.b+'</div></div>'
+  // Card OGGI
+  html+='<div class="card" style="margin-bottom:14px;border-color:var(--gold)">';
+  html+='<div class="card-head" style="background:linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.04))">'
+    +'<div class="card-title" style="color:var(--gold)">🔴 OGGI · '+_fmtDate(todayStr)+'</div>'
+    +'<span style="margin-left:auto;font-size:10px;color:var(--muted)">'+todayMatches.length+' partit'+(todayMatches.length===1?'a':'e')+'</span>'
+    +'</div>';
+  
+  if(todayMatches.length===0){
+    html+='<div class="empty-state" style="padding:30px 20px"><div class="empty-icon">📅</div><div class="empty-text">Oggi nessuna partita in programma</div></div>';
+  } else {
+    todayMatches.forEach(function(m){html+=_matchRow(m);});
+  }
+  html+='</div>';
+  
+  // Pulsante "Vedi prossime partite"
+  if(futureDates.length>0){
+    html+='<button id="oggiToggleFutureBtn" onclick="_toggleOggiFuture()" style="width:100%;padding:13px;background:rgba(61,142,240,0.08);border:1px solid rgba(61,142,240,0.25);color:#3d8ef0;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:14px;letter-spacing:0.5px">📅 Vedi prossime partite ('+futureMatches.length+') ▾</button>';
+    html+='<div id="oggiFutureWrap" style="display:none">';
+    futureDates.slice(0,7).forEach(function(date){
+      html+='<div class="card" style="margin-bottom:14px">';
+      html+='<div class="card-head">'
+        +'<div class="card-title">'+_fmtDate(date)+'</div>'
+        +'<span style="margin-left:auto;font-size:10px;color:var(--muted)">'+futureByDate[date].length+' partit'+(futureByDate[date].length===1?'a':'e')+'</span>'
         +'</div>';
+      futureByDate[date].forEach(function(m){html+=_matchRow(m);});
+      html+='</div>';
     });
     html+='</div>';
-  });
+  }
+  
   html+='</div>';
   el.innerHTML=html;
+}
+
+function _toggleOggiFuture(){
+  var wrap=document.getElementById('oggiFutureWrap');
+  var btn=document.getElementById('oggiToggleFutureBtn');
+  if(!wrap||!btn) return;
+  var isHidden=wrap.style.display==='none';
+  wrap.style.display=isHidden?'block':'none';
+  btn.innerHTML=btn.innerHTML.replace(/[▾▴]/, isHidden?'▴':'▾').replace(/Vedi prossime partite/, isHidden?'Nascondi prossime partite':'Vedi prossime partite');
 }
 
 function _oggiOpenMatch(id,league){
