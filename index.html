@@ -1100,8 +1100,9 @@ function renderMatches() {
     })
     const sorted=[...played,...shuffled]
     const gid='grp_'+activeLeague+'_'+g
-    html+=`<div class="card"><div class="card-head"><div class="group-badge">${g}</div><div class="card-title">Girone ${g}</div><span style="margin-left:auto;font-size:10px;color:var(--muted)">${played.length}/${all.length}</span></div><div id="${gid}">${sorted.slice(0,4).map(matchRowHTML).join("")}</div>`
-    if(sorted.length>4) html+=`<div id="${gid}_more" style="display:none">${sorted.slice(4).map(matchRowHTML).join("")}</div><button class="show-more-btn" id="${gid}_btn" data-count="${sorted.length-4}" onclick="toggleMore('${gid}')">Mostra altre ${sorted.length-4} partite ▾</button>`
+    var _isF=activeLeague==='F';
+    html+=`<div class="card"><div class="card-head"><div class="group-badge">${g}</div><div class="card-title">Girone ${g}</div><span style="margin-left:auto;font-size:10px;color:var(--muted)">${played.length}/${all.length}</span></div><div id="${gid}">${sorted.slice(0,4).map(function(x){return matchRowHTML(x,_isF)}).join("")}</div>`
+    if(sorted.length>4) html+=`<div id="${gid}_more" style="display:none">${sorted.slice(4).map(function(x){return matchRowHTML(x,_isF)}).join("")}</div><button class="show-more-btn" id="${gid}_btn" data-count="${sorted.length-4}" onclick="toggleMore('${gid}')">Mostra altre ${sorted.length-4} partite ▾</button>`
     html+=`</div>`
   })
   risultati.innerHTML=html
@@ -2704,9 +2705,6 @@ function renderProAdmin(){
   h+='</div>';
   h+='<div style="margin-top:8px">';
   h+='<button onclick="_triggerImport()" style="width:100%;padding:11px;background:rgba(61,142,240,0.08);border:1px solid rgba(61,142,240,0.25);color:#3d8ef0;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">📂 Ripristina backup</button>';
-  h+='</div>';
-  h+='<div style="margin-top:8px">';
-  h+='<button onclick="_forceResolveAllBets()" style="width:100%;padding:11px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);color:var(--gold);border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔄 Forza risoluzione scommesse</button>';
   h+='</div>';
     el.innerHTML=h;
 }
