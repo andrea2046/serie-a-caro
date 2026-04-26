@@ -414,9 +414,9 @@ select option{background:var(--s2)}
 <nav class="nav">
   <button class="nav-btn active" id="navClassifica" onclick="changePage('classifica',this)">Classifica</button>
   <button class="nav-btn" id="navRisultati" onclick="changePage('risultati',this)">Partite</button>
+  <button class="nav-btn" id="navOggi" onclick="changePage('oggi',this)">Oggi</button>
   <button class="nav-btn" id="navMarcatori" onclick="changePage('marcatori',this)">Marcatori</button>
   <button class="nav-btn" id="navPronostici" onclick="changePage('pronostici',this)">BETS</button>
-  <button class="nav-btn" id="navOggi" onclick="changePage('oggi',this)">Oggi</button>
 </nav>
 <div id="classifica" class="container active"><div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Caricamento...</div></div></div>
 <div id="risultati" class="container"></div>
@@ -1110,65 +1110,79 @@ function renderMatches() {
 function renderOggi(){
   var el=document.getElementById('oggi');
   if(!el) return;
-  // Data odierna in formato YYYY-MM-DD (locale)
   var now=new Date();
   var yyyy=now.getFullYear();
   var mm=String(now.getMonth()+1).padStart(2,'0');
   var dd=String(now.getDate()).padStart(2,'0');
   var todayStr=yyyy+'-'+mm+'-'+dd;
   
-  function _renderLeagueMatches(arr,leagueLabel,gradient,leagueCode){
-    // Filtra: solo partite con data >= oggi, non giocate
-    var upcoming=arr.filter(function(m){return m.date && !m.played && m.date>=todayStr;});
-    upcoming.sort(function(a,b){
-      var da=a.date+a.time, db=b.date+b.time;
-      return da<db?-1:da>db?1:0;
-    });
-    
-    // Raggruppa per data
-    var byDate={};
-    upcoming.forEach(function(m){
-      if(!byDate[m.date]) byDate[m.date]=[];
-      byDate[m.date].push(m);
-    });
-    
-    var dates=Object.keys(byDate).sort();
-    if(dates.length===0){
-      return '<div class="card"><div class="card-head"><div class="card-title">'+leagueLabel+'</div></div><div class="empty-state" style="padding:20px"><div class="empty-text">Nessuna partita in programma</div></div></div>';
-    }
-    
-    var h='<div class="card"><div class="card-head"><div class="card-title">'+leagueLabel+'</div>'+(admin?'<span style="margin-left:auto;font-size:10px;color:var(--gold)">👑 Tocca per gestire</span>':'')+'</div>';
-    dates.slice(0,5).forEach(function(date,idx){
-      var isToday=(date===todayStr);
-      var label=isToday?'🔴 OGGI':_fmtDate(date);
-      h+='<div style="padding:10px 12px;background:'+(isToday?gradient:'rgba(255,255,255,0.03)')+';border-radius:8px;margin:'+(idx===0?'0':'10px')+' 8px 6px;font-family:Anton,sans-serif;font-size:13px;letter-spacing:1.5px;color:'+(isToday?'#000':'var(--muted)')+';font-weight:700">'+label.toUpperCase()+'</div>';
-      byDate[date].forEach(function(m){
-        var clickAction=admin?'onclick="_oggiOpenMatch('+m.id+',\''+leagueCode+'\')" style="cursor:pointer"':'';
-        h+='<div '+clickAction+' class="oggi-match-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);transition:background .15s">'
-          +'<div style="flex:1;font-size:13px;font-weight:600;color:var(--text)">'+m.a+'</div>'
-          +'<div style="display:flex;flex-direction:column;align-items:center;min-width:70px">'
-          +'<div style="font-family:Anton,sans-serif;font-size:14px;color:var(--gold)">'+m.time+'</div>'
-          +'<div style="font-size:9px;color:var(--muted);margin-top:2px">Gir. '+m.group+'</div>'
-          +'</div>'
-          +'<div style="flex:1;font-size:13px;font-weight:600;color:var(--text);text-align:right">'+m.b+'</div>'
-          +'</div>';
-      });
-    });
-    h+='</div>';
-    return h;
+  // Combina M e F in un'unica lista, ognuna con tag lega
+  var allUpcoming=[];
+  matches.forEach(function(m){if(m.date&&!m.played&&m.date>=todayStr) allUpcoming.push(Object.assign({_l:'M'},m));});
+  matchesF.forEach(function(m){if(m.date&&!m.played&&m.date>=todayStr) allUpcoming.push(Object.assign({_l:'F'},m));});
+  allUpcoming.sort(function(a,b){
+    var da=a.date+a.time, db=b.date+b.time;
+    return da<db?-1:da>db?1:0;
+  });
+  
+  // Raggruppa per data
+  var byDate={};
+  allUpcoming.forEach(function(m){
+    if(!byDate[m.date]) byDate[m.date]=[];
+    byDate[m.date].push(m);
+  });
+  var dates=Object.keys(byDate).sort();
+  
+  if(dates.length===0){
+    el.innerHTML='<div style="padding:14px"><div class="card"><div class="empty-state" style="padding:40px 20px"><div class="empty-icon">📅</div><div class="empty-text">Nessuna partita in programma</div></div></div></div>';
+    return;
   }
   
   var html='<div style="padding:14px">';
-  html+=_renderLeagueMatches(matches,'♂ MASCHILE','linear-gradient(135deg,#f5c518,#d4a00a)','M');
-  html+='<div style="height:14px"></div>';
-  html+=_renderLeagueMatches(matchesF,'♀ FEMMINILE','linear-gradient(135deg,#ff6ec7,#c34897)','F');
+  // Legenda colori
+  html+='<div style="display:flex;gap:10px;justify-content:center;margin-bottom:14px;font-size:11px;font-weight:700">'
+    +'<div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#3d8ef0;border-radius:50%;display:inline-block"></span><span style="color:#3d8ef0">MASCHILE</span></div>'
+    +'<div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#ff6ec7;border-radius:50%;display:inline-block"></span><span style="color:#ff6ec7">FEMMINILE</span></div>'
+    +'</div>';
+  
+  dates.slice(0,7).forEach(function(date){
+    var isToday=(date===todayStr);
+    var label=isToday?'🔴 OGGI':_fmtDate(date);
+    html+='<div class="card" style="margin-bottom:14px'+(isToday?';border-color:var(--gold)':'')+'">';
+    html+='<div class="card-head" style="'+(isToday?'background:linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.04))':'')+'">'
+      +'<div class="card-title" style="'+(isToday?'color:var(--gold)':'')+'">'+label+'</div>'
+      +'<span style="margin-left:auto;font-size:10px;color:var(--muted)">'+byDate[date].length+' partit'+(byDate[date].length===1?'a':'e')+'</span>'
+      +'</div>';
+    
+    byDate[date].forEach(function(m){
+      var isM=(m._l==='M');
+      var color=isM?'#3d8ef0':'#ff6ec7';
+      var bg=isM?'rgba(61,142,240,0.06)':'rgba(255,110,199,0.06)';
+      var border=isM?'rgba(61,142,240,0.25)':'rgba(255,110,199,0.25)';
+      var clickAttr=admin?(' onclick="_oggiOpenMatch('+m.id+',\''+m._l+'\')"'):'';
+      var cursorStyle=admin?';cursor:pointer':'';
+      html+='<div class="oggi-match-row"'+clickAttr+' style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.04);transition:background .15s'+cursorStyle+'">'
+        // Tag lega
+        +'<div style="width:6px;height:38px;background:'+color+';border-radius:3px;flex-shrink:0"></div>'
+        // Squadra A
+        +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.a+'</div></div>'
+        // Centro: orario + girone
+        +'<div style="display:flex;flex-direction:column;align-items:center;min-width:62px;padding:0 6px;background:'+bg+';border:1px solid '+border+';border-radius:8px;padding:4px 8px">'
+        +'<div style="font-family:Anton,sans-serif;font-size:14px;color:'+color+';line-height:1">'+m.time+'</div>'
+        +'<div style="font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:0.5px">GIR. '+m.group+'</div>'
+        +'</div>'
+        // Squadra B
+        +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.b+'</div></div>'
+        +'</div>';
+    });
+    html+='</div>';
+  });
   html+='</div>';
   el.innerHTML=html;
 }
 
 function _oggiOpenMatch(id,league){
   if(!admin) return;
-  // Switcha alla lega corretta SENZA cambiare pagina
   if(activeLeague!==league){
     activeLeague=league;
     document.getElementById('btnM').classList.toggle('active',league==='M');
@@ -2471,6 +2485,37 @@ function checkSel(b){
   return 'pending';
 }
 
+function _forceResolveAllBets(){
+  if(!confirm('Forzare la risoluzione di tutte le scommesse pendenti? Le selezioni su partite giocate verranno valutate.')) return;
+  var all=getAllData();
+  var resolved=0,winners=0,paid=0,users=0;
+  Object.entries(all).forEach(function(e){
+    var username=e[0],d=e[1];
+    if(!d.storia||!d.storia.length) return;
+    var changed=false;
+    d.storia.forEach(function(bet){
+      if(bet.status!=='pending') return;
+      if(!bet.schedina||!bet.schedina.length) return;
+      var allSettled=true,anyLost=false;
+      bet.schedina.forEach(function(b){
+        var res=checkSel(b);
+        if(res==='pending') allSettled=false;
+        if(res==='lose') anyLost=true;
+      });
+      if(anyLost){bet.status='lose';changed=true;resolved++;}
+      else if(allSettled){bet.status='win';d.tokens=(d.tokens||0)+(bet.vincita||0);paid+=bet.vincita||0;changed=true;resolved++;winners++;}
+    });
+    if(changed){all[username]=d;users++;}
+  });
+  if(resolved>0){
+    saveAllData(all);
+    showToast('✅ '+resolved+' scommesse risolte ('+winners+' vincenti, '+paid+' tk pagati a '+users+' utenti)');
+    renderProAdmin();
+  } else {
+    showToast('Nessuna scommessa pendente da risolvere');
+  }
+}
+
 
 async function refreshPro(){
   // Debounce: non refreshare se fatto negli ultimi 15s
@@ -2659,6 +2704,9 @@ function renderProAdmin(){
   h+='</div>';
   h+='<div style="margin-top:8px">';
   h+='<button onclick="_triggerImport()" style="width:100%;padding:11px;background:rgba(61,142,240,0.08);border:1px solid rgba(61,142,240,0.25);color:#3d8ef0;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">📂 Ripristina backup</button>';
+  h+='</div>';
+  h+='<div style="margin-top:8px">';
+  h+='<button onclick="_forceResolveAllBets()" style="width:100%;padding:11px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);color:var(--gold);border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">🔄 Forza risoluzione scommesse</button>';
   h+='</div>';
     el.innerHTML=h;
 }
