@@ -1112,7 +1112,15 @@ function rebuildScorers() {
 
 function renderScorers() {
   const {scorers,mvpCount}=activeData()
-  const sorted=Object.values(scorers).sort((a,b)=>b.goals-a.goals)
+  const sorted=Object.values(scorers).sort((a,b)=>{
+    if(b.goals!==a.goals) return b.goals-a.goals;
+    // A parità di gol, più MVP = posizione migliore
+    var mvpA=mvpCount[a.name.toLowerCase()]||0;
+    var mvpB=mvpCount[b.name.toLowerCase()]||0;
+    if(mvpB!==mvpA) return mvpB-mvpA;
+    // A parità anche di MVP, ordine alfabetico
+    return a.name.localeCompare(b.name);
+  })
   if(!sorted.length){marcatori.innerHTML=`<div class="empty-state"><div class="empty-icon">⚽</div><div class="empty-text">Nessun gol ancora segnato</div></div>`;return}
   marcatori.innerHTML=`<div class="card">${sorted.map((s,i)=>{const mvps=mvpCount[s.name.toLowerCase()]||0;const initials=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);const pc=i===0?'pos-1':i===1?'pos-2':i===2?'pos-3':'pos-other';return `<div class="scorer-item"><div class="scorer-pos ${pc}">${i+1}</div><div class="scorer-avatar">${playerImages[s.name]?`<img src="${playerImages[s.name]}" alt="">`:initials}</div><div class="scorer-info"><div class="scorer-name">${s.name}</div><div class="scorer-meta"><span class="meta-goals">⚽ ${s.goals}</span>${mvps?`<span>⭐ ${mvps} MVP</span>`:''}</div></div></div>`}).join("")}</div>`
 }
@@ -1193,7 +1201,7 @@ async function saveMatch() {
   renderMatches(); renderTable(); renderScorers()
   resolveBets(m.id, m.g1, m.g2, m.mvp, activeLeague==='F')
   const ok=await binSave()
-  window._savingMatch=false;
+  setTimeout(function(){window._savingMatch=false;}, 2000);
   if(ok) showToast("✅ Salvato!")
   else showToast("Errore salvataggio!","err")
 }
@@ -1205,7 +1213,10 @@ function toggleMatchLock(matchId, isF){
   m.locked=!m.locked;
   renderMatches();
   window._savingMatch=true;
-  binSave().then(function(){window._savingMatch=false;});
+  binSave().then(function(){
+    // Mantieni il flag attivo per 2s in più: il listener riceve l'eco del nostro save
+    setTimeout(function(){window._savingMatch=false;}, 2000);
+  });
   showToast(m.locked?'🔒 Scommesse bloccate':'🔓 Scommesse aperte');
 }
 
@@ -1216,7 +1227,7 @@ function deleteResult() {
   m.g1=null; m.g2=null; m.mvp=""; m.played=false; m.scorersA=[]; m.scorersB=[]
   rebuildScorers(); matchPop.style.display='none'
   renderMatches(); renderTable(); renderScorers()
-  binSave().then(ok=>{window._savingMatch=false;if(ok) showToast("✅ Risultato eliminato!")})
+  binSave().then(ok=>{setTimeout(function(){window._savingMatch=false;},2000);if(ok) showToast("✅ Risultato eliminato!")})
 }
 
 function setNewsLeague(l) { pendingNewsLeague=l; document.getElementById('nlBtnM').classList.toggle('active',l==='M'); document.getElementById('nlBtnF').classList.toggle('active',l==='F') }
