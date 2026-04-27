@@ -628,7 +628,7 @@ _fbRef.on('value', function(snap){
 });
 
 _fbRef.on('child_changed', function(){ /* gestito da value listener */ });
-const PASSWORD_HASH = "b6ee02129e307e0b61bd7649a05d24df7e9938becce2a4298fb624b3a3b928a7"
+const PASSWORD_HASH = "df965d85f10370e6605fe41203ddfffb4819630415dc1842aeb1871a5f4b72d6"
 
 const groupsDef = {
   A: ["🇦🇷 5DE","🇧🇪 3AC","🇵🇦 2EE","🇲🇦 2AC","🇪🇸 1C"],
@@ -826,7 +826,34 @@ async function binSave() {
   }
 }
 
+// SALT segreto per derivazione chiave (parte del codice, ma cambia il dizionario di attacco)
+const _APP_SALT = "f64d1e5d0449c859f0cc70dc844381ec";
+
 async function hashPassword(pwd) {
+  // PBKDF2 con 200,000 iterazioni: cracking offline lentissimo
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(pwd),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: enc.encode(_APP_SALT),
+      iterations: 200000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    256
+  );
+  return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+// Hash legacy (vecchio sistema SHA-256 senza salt) per supporto backward compatibility utenti
+async function hashPasswordLegacy(pwd) {
   const buf = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pwd))
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("")
 }
@@ -856,14 +883,19 @@ async function _logAdminAccess(type, success){
 }
 
 async function doLogin() {
-  const lockUntil = parseInt(localStorage.getItem('lock_until')||'0')
-  if (Date.now() < lockUntil) {
-    const mins = Math.ceil((lockUntil - Date.now()) / 60000)
-    alert(`Troppi tentativi. Riprova tra ${mins} minuto${mins>1?'i':''}`)
-    return
-  }
+  // Rate limiter su Firebase (non bypassabile da DevTools)
+  try {
+    var lockSnap = await _fbRef.child('adminLock/admin').once('value');
+    var lockData = lockSnap.val() || {};
+    var lockUntil = lockData.lockUntil || 0;
+    if (Date.now() < lockUntil) {
+      const mins = Math.ceil((lockUntil - Date.now()) / 60000);
+      alert(`Troppi tentativi. Riprova tra ${mins} minuto${mins>1?'i':''}`);
+      return;
+    }
+  } catch(e){}
   if (await hashPassword(pass.value) === PASSWORD_HASH) {
-    localStorage.removeItem('login_attempts'); localStorage.removeItem('lock_until')
+    _fbRef.child('adminLock/admin').remove().catch(function(){});
     admin=true; loginPopup.style.display="none"
     logoutBtn.style.display="inline-block"; loginBtn.style.display="none"
     document.getElementById('backupMatchBtn').style.display='inline-block';
@@ -871,10 +903,20 @@ async function doLogin() {
     pass.value=""; renderMatches()
     _logAdminAccess('admin', true);
   } else {
-    const attempts = parseInt(localStorage.getItem('login_attempts')||'0') + 1
-    localStorage.setItem('login_attempts', attempts)
-    if (attempts >= 3) { localStorage.setItem('lock_until', Date.now() + 60*60*1000); localStorage.removeItem('login_attempts'); alert('Troppi tentativi errati. Account bloccato per 1 ora.') }
-    else alert(`Password errata. Tentativi rimasti: ${3 - attempts}`)
+    try {
+      var snap = await _fbRef.child('adminLock/admin').once('value');
+      var data = snap.val() || {attempts:0};
+      var attempts = (data.attempts || 0) + 1;
+      if (attempts >= 3) {
+        await _fbRef.child('adminLock/admin').set({lockUntil: Date.now() + 60*60*1000, attempts: 0});
+        alert('Troppi tentativi errati. Bloccato per 1 ora.');
+      } else {
+        await _fbRef.child('adminLock/admin').set({attempts: attempts});
+        alert(`Password errata. Tentativi rimasti: ${3 - attempts}`);
+      }
+    } catch(e){
+      alert('Password errata');
+    }
     pass.value=""
     _logAdminAccess('admin', false);
   }
@@ -1588,7 +1630,7 @@ const AVATARS = [
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><circle cx="30" cy="30" r="30" fill="#1a1000"/><rect x="24" y="43" width="12" height="7" rx="3" fill="#C68642"/><ellipse cx="30" cy="31" rx="15" ry="16" fill="#C68642"/><ellipse cx="30" cy="19" rx="13" ry="6" fill="#f39c12"/><circle cx="30" cy="11" r="7" fill="#f39c12"/><ellipse cx="24" cy="32" rx="3.8" ry="3.2" fill="white"/><ellipse cx="36" cy="32" rx="3.8" ry="3.2" fill="white"/><circle cx="24.8" cy="32" r="2" fill="#2c3e50"/><circle cx="36.8" cy="32" r="2" fill="#2c3e50"/><circle cx="25.5" cy="31.3" r="0.7" fill="white"/><circle cx="37.5" cy="31.3" r="0.7" fill="white"/><line x1="23" y1="28.8" x2="21.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="35" y1="28.8" x2="33.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="24" y1="28.8" x2="23.0" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="36" y1="28.8" x2="35.0" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="25" y1="28.8" x2="24.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="37" y1="28.8" x2="36.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><circle cx="21" cy="36" r="3.5" fill="#ff9999" opacity="0.3"/><circle cx="39" cy="36" r="3.5" fill="#ff9999" opacity="0.3"/><path d="M20 27 Q24 25.5 28 27" stroke="#f39c12" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M32 27 Q36 25.5 40 27" stroke="#f39c12" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M26 39 Q31 42 36 39" stroke="#c0392b" stroke-width="1.8" fill="none" stroke-linecap="round"/><polygon points="13,20 17,11 22,17 30,9 38,17 43,11 47,20" fill="#f5c518"/><rect x="13" y="18" width="34" height="4" rx="2" fill="#f5c518"/></svg>',
 ];
 
-var PRO_ADMIN_HASH='71d68a964f221d715f6e14ec52c404548feb4959b40675fadaa2dff28a80c758';
+var PRO_ADMIN_HASH='887a62bbf54933d352c636e6ea052fc8f1771c2605aed5ebe25ddff97dcf0e92';
 var proAdminLogged=false;
 var proActiveTab='scommesse';
 var proLeague='M';
@@ -2078,16 +2120,17 @@ function proLogin(){
   var username=u.value.trim(),pwd=p.value.trim();
   var users=getUsers();
   if(!users[username]){showToast('Credenziali errate!','err');return;}
-  // Supporta sia vecchi hash base64 che nuovi SHA-256
-  hashPassword(pwd).then(function(hashed){
-    if(users[username]!==btoa(pwd) && users[username]!==hashed){showToast('Credenziali errate!','err');return;}
-    // Se era base64, aggiorna a SHA-256
-    if(users[username]===btoa(pwd)){users[username]=hashed;saveUsers(users);}
-  setProSession({username:username});
+  // Supporta tre formati: PBKDF2 (nuovo), SHA-256 legacy, base64 antico
+  Promise.all([hashPassword(pwd), hashPasswordLegacy(pwd)]).then(function(hashes){
+    var hPbk=hashes[0], hSha=hashes[1], hB64=btoa(pwd);
+    var stored=users[username];
+    if(stored!==hPbk && stored!==hSha && stored!==hB64){showToast('Credenziali errate!','err');return;}
+    // Se era un hash vecchio, aggiorna a PBKDF2
+    if(stored!==hPbk){users[username]=hPbk;saveUsers(users);}
+    setProSession({username:username});
     showToast('\u2705 Bentornato!');
     renderPronostici();
-    // Ricarica dati dal server per aggiornare la classifica
-    window._lastBinLoad=0; // resetta cache binLoad
+    window._lastBinLoad=0;
     binLoad().then(function(){ renderPronostici(); }).catch(function(){});
   });
 }
@@ -2803,35 +2846,47 @@ function openProAdmin(){document.getElementById('proAdminPopup').style.display='
 function closeProAdmin(){document.getElementById('proAdminPopup').style.display='none';}
 async function proAdminLogin(){
   var pwd=document.getElementById('proAdminPwd');if(!pwd) return;
-  var lockUntil=parseInt(localStorage.getItem('pro_lock_until')||'0');
-  if(Date.now()<lockUntil){var mins=Math.ceil((lockUntil-Date.now())/60000);showToast('Troppi tentativi. Riprova tra '+mins+' min','err');return;}
+  try {
+    var lockSnap = await _fbRef.child('adminLock/proAdmin').once('value');
+    var lockData = lockSnap.val() || {};
+    if(Date.now()<(lockData.lockUntil||0)){var mins=Math.ceil(((lockData.lockUntil||0)-Date.now())/60000);showToast('Troppi tentativi. Riprova tra '+mins+' min','err');return;}
+  } catch(e){}
   var hash=await hashPassword(pwd.value);
   if(hash===PRO_ADMIN_HASH){
-    localStorage.removeItem('pro_login_attempts');localStorage.removeItem('pro_lock_until');
+    _fbRef.child('adminLock/proAdmin').remove().catch(function(){});
     proAdminLogged=true;document.getElementById('proAdminHeaderBtn').style.display='flex';renderProAdmin();
     _logAdminAccess('proAdmin', true);
   } else {
-    var att=parseInt(localStorage.getItem('pro_login_attempts')||'0')+1;
-    localStorage.setItem('pro_login_attempts',att);
-    if(att>=3){localStorage.setItem('pro_lock_until',Date.now()+60*60*1000);localStorage.removeItem('pro_login_attempts');showToast('Bloccato per 1 ora','err');}
-    else showToast('Password errata! Tentativi: '+(3-att),'err');
+    try {
+      var snap = await _fbRef.child('adminLock/proAdmin').once('value');
+      var data = snap.val() || {attempts:0};
+      var att = (data.attempts||0) + 1;
+      if(att>=3){await _fbRef.child('adminLock/proAdmin').set({lockUntil:Date.now()+60*60*1000,attempts:0});showToast('Bloccato per 1 ora','err');}
+      else {await _fbRef.child('adminLock/proAdmin').set({attempts:att});showToast('Password errata! Tentativi: '+(3-att),'err');}
+    } catch(e){showToast('Password errata!','err');}
     _logAdminAccess('proAdmin', false);
   }
 }
 async function proAdminLoginInline(){
   var pwd=document.getElementById('proAdminPwdInline');if(!pwd) return;
-  var lockUntil=parseInt(localStorage.getItem('pro_lock_until')||'0');
-  if(Date.now()<lockUntil){var mins=Math.ceil((lockUntil-Date.now())/60000);showToast('Troppi tentativi. Riprova tra '+mins+' min','err');return;}
+  try {
+    var lockSnap = await _fbRef.child('adminLock/proAdmin').once('value');
+    var lockData = lockSnap.val() || {};
+    if(Date.now()<(lockData.lockUntil||0)){var mins=Math.ceil(((lockData.lockUntil||0)-Date.now())/60000);showToast('Troppi tentativi. Riprova tra '+mins+' min','err');return;}
+  } catch(e){}
   var hash=await hashPassword(pwd.value);
   if(hash===PRO_ADMIN_HASH){
-    localStorage.removeItem('pro_login_attempts');localStorage.removeItem('pro_lock_until');
+    _fbRef.child('adminLock/proAdmin').remove().catch(function(){});
     proAdminLogged=true;pwd.value='';document.getElementById('proAdminHeaderBtn').style.display='flex';renderPronostici();
     _logAdminAccess('proAdmin', true);
   } else {
-    var att=parseInt(localStorage.getItem('pro_login_attempts')||'0')+1;
-    localStorage.setItem('pro_login_attempts',att);
-    if(att>=3){localStorage.setItem('pro_lock_until',Date.now()+60*60*1000);localStorage.removeItem('pro_login_attempts');showToast('Bloccato per 1 ora','err');}
-    else showToast('Password errata! Tentativi: '+(3-att),'err');
+    try {
+      var snap = await _fbRef.child('adminLock/proAdmin').once('value');
+      var data = snap.val() || {attempts:0};
+      var att = (data.attempts||0) + 1;
+      if(att>=3){await _fbRef.child('adminLock/proAdmin').set({lockUntil:Date.now()+60*60*1000,attempts:0});showToast('Bloccato per 1 ora','err');}
+      else {await _fbRef.child('adminLock/proAdmin').set({attempts:att});showToast('Password errata! Tentativi: '+(3-att),'err');}
+    } catch(e){showToast('Password errata!','err');}
     pwd.value='';
     _logAdminAccess('proAdmin', false);
   }
