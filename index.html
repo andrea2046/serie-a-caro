@@ -400,6 +400,8 @@ select option{background:var(--s2)}
   <div class="header-btns">
     <button class="pro-admin-icon" id="proAdminHeaderBtn" onclick="openProAdmin()" title="Admin pronostici">⚙️</button>
     <button class="btn btn-gold" onclick="openLogin()" id="loginBtn">Admin</button>
+    <button class="btn btn-ghost" onclick="_exportMatches()" id="backupMatchBtn" style="display:none;background:rgba(0,214,143,0.12);color:#00d68f;border:1px solid rgba(0,214,143,0.3)" title="Backup partite e risultati">💾</button>
+    <button class="btn btn-ghost" onclick="_triggerImportMatches()" id="restoreMatchBtn" style="display:none;background:rgba(61,142,240,0.12);color:#3d8ef0;border:1px solid rgba(61,142,240,0.3)" title="Ripristina backup partite">📂</button>
     <button class="btn btn-ghost" onclick="logout()" id="logoutBtn" style="display:none">Esci</button>
   </div>
 </header>
@@ -626,7 +628,7 @@ _fbRef.on('value', function(snap){
 });
 
 _fbRef.on('child_changed', function(){ /* gestito da value listener */ });
-const PASSWORD_HASH = "5d28a834728f3baeb111d317aa4606f5bb82c0ce762b534ec91c23c0ed54031a"
+const PASSWORD_HASH = "b6ee02129e307e0b61bd7649a05d24df7e9938becce2a4298fb624b3a3b928a7"
 
 const groupsDef = {
   A: ["🇦🇷 5DE","🇧🇪 3AC","🇵🇦 2EE","🇲🇦 2AC","🇪🇸 1C"],
@@ -831,6 +833,28 @@ async function hashPassword(pwd) {
 
 function openLogin() { loginPopup.style.display="flex" }
 
+// Helper: registra accesso admin su Firebase
+async function _logAdminAccess(type, success){
+  try {
+    var ip='?';
+    try{
+      var r=await fetch('https://api.ipify.org?format=json',{cache:'no-store'});
+      var d=await r.json();
+      ip=d.ip||'?';
+    }catch(e){}
+    var entry={
+      ts: Date.now(),
+      type: type, // 'admin' o 'proAdmin'
+      success: !!success,
+      ip: ip,
+      ua: (navigator.userAgent||'').slice(0,200),
+      lang: navigator.language||'?'
+    };
+    var key='log_'+entry.ts+'_'+Math.random().toString(36).substr(2,5);
+    _fbRef.child('adminLog/'+key).set(entry).catch(function(){});
+  }catch(e){console.error('logAdmin error:',e);}
+}
+
 async function doLogin() {
   const lockUntil = parseInt(localStorage.getItem('lock_until')||'0')
   if (Date.now() < lockUntil) {
@@ -842,18 +866,24 @@ async function doLogin() {
     localStorage.removeItem('login_attempts'); localStorage.removeItem('lock_until')
     admin=true; loginPopup.style.display="none"
     logoutBtn.style.display="inline-block"; loginBtn.style.display="none"
+    document.getElementById('backupMatchBtn').style.display='inline-block';
+    document.getElementById('restoreMatchBtn').style.display='inline-block';
     pass.value=""; renderMatches()
+    _logAdminAccess('admin', true);
   } else {
     const attempts = parseInt(localStorage.getItem('login_attempts')||'0') + 1
     localStorage.setItem('login_attempts', attempts)
     if (attempts >= 3) { localStorage.setItem('lock_until', Date.now() + 60*60*1000); localStorage.removeItem('login_attempts'); alert('Troppi tentativi errati. Account bloccato per 1 ora.') }
     else alert(`Password errata. Tentativi rimasti: ${3 - attempts}`)
     pass.value=""
+    _logAdminAccess('admin', false);
   }
 }
 
 function logout() {
   admin=false; logoutBtn.style.display="none"; loginBtn.style.display="inline-block"
+  document.getElementById('backupMatchBtn').style.display='none';
+  document.getElementById('restoreMatchBtn').style.display='none';
   document.getElementById('newsFab').style.display='none'; renderMatches()
 }
 
@@ -1558,7 +1588,7 @@ const AVATARS = [
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><circle cx="30" cy="30" r="30" fill="#1a1000"/><rect x="24" y="43" width="12" height="7" rx="3" fill="#C68642"/><ellipse cx="30" cy="31" rx="15" ry="16" fill="#C68642"/><ellipse cx="30" cy="19" rx="13" ry="6" fill="#f39c12"/><circle cx="30" cy="11" r="7" fill="#f39c12"/><ellipse cx="24" cy="32" rx="3.8" ry="3.2" fill="white"/><ellipse cx="36" cy="32" rx="3.8" ry="3.2" fill="white"/><circle cx="24.8" cy="32" r="2" fill="#2c3e50"/><circle cx="36.8" cy="32" r="2" fill="#2c3e50"/><circle cx="25.5" cy="31.3" r="0.7" fill="white"/><circle cx="37.5" cy="31.3" r="0.7" fill="white"/><line x1="23" y1="28.8" x2="21.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="35" y1="28.8" x2="33.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="24" y1="28.8" x2="23.0" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="36" y1="28.8" x2="35.0" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="25" y1="28.8" x2="24.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><line x1="37" y1="28.8" x2="36.5" y2="26" stroke="#f39c12" stroke-width="1" stroke-linecap="round"/><circle cx="21" cy="36" r="3.5" fill="#ff9999" opacity="0.3"/><circle cx="39" cy="36" r="3.5" fill="#ff9999" opacity="0.3"/><path d="M20 27 Q24 25.5 28 27" stroke="#f39c12" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M32 27 Q36 25.5 40 27" stroke="#f39c12" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M26 39 Q31 42 36 39" stroke="#c0392b" stroke-width="1.8" fill="none" stroke-linecap="round"/><polygon points="13,20 17,11 22,17 30,9 38,17 43,11 47,20" fill="#f5c518"/><rect x="13" y="18" width="34" height="4" rx="2" fill="#f5c518"/></svg>',
 ];
 
-var PRO_ADMIN_HASH='1bc93b8a6dbecc93832fe6e0bba74c0247126c5542eef82ae7d50dbecef213ef';
+var PRO_ADMIN_HASH='71d68a964f221d715f6e14ec52c404548feb4959b40675fadaa2dff28a80c758';
 var proAdminLogged=false;
 var proActiveTab='scommesse';
 var proLeague='M';
@@ -1659,6 +1689,74 @@ function addTokens(n){
 }
 
 
+
+function _triggerImportMatches(){
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='.json';
+  inp.onchange=function(e){
+    var file=e.target.files[0];if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try {
+        var backup=JSON.parse(ev.target.result);
+        if(!backup.data){showToast('File non valido','err');return;}
+        var d=backup.data;
+        var totM=(d.matches||[]).filter(function(m){return m.played}).length;
+        var totF=(d.matchesF||[]).filter(function(m){return m.played}).length;
+        var ts=backup.timestamp?new Date(backup.timestamp).toLocaleString('it-IT'):'sconosciuto';
+        if(!confirm('Ripristinare partite da backup del '+ts+'?\n\n'+totM+' partite maschili giocate\n'+totF+' partite femminili giocate\n\nGli utenti e le scommesse NON verranno toccati.')) return;
+        window._savingMatch=true;
+        if(d.matches&&d.matches.length) matches=d.matches;
+        if(d.matchesF&&d.matchesF.length) matchesF=d.matchesF;
+        if(d.playerImages) playerImages=d.playerImages;
+        _applySchedule();
+        rebuildScorers();renderTable();renderMatches();renderScorers();renderOggi();
+        setSyncStatus('loading','Ripristino partite...');
+        _fbRef.update({matches:matches, matchesF:matchesF, playerImages:playerImages||{}})
+        .then(function(){
+          setTimeout(function(){window._savingMatch=false;}, 2000);
+          setSyncStatus('ok','Ripristino completato ✓');
+          showToast('✅ Partite ripristinate! '+totM+'M + '+totF+'F');
+        }).catch(function(e){
+          window._savingMatch=false;
+          setSyncStatus('err','Errore: '+e.message);
+          showToast('Errore: '+e.message,'err');
+        });
+      } catch(err){showToast('Errore file: '+err.message,'err');}
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+function _exportMatches(){
+  try {
+    var backup={
+      timestamp: new Date().toISOString(),
+      type: 'matches_only',
+      data: {
+        matches: matches,
+        matchesF: matchesF,
+        playerImages: playerImages
+      }
+    };
+    var json=JSON.stringify(backup, null, 2);
+    var blob=new Blob([json], {type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    var date=new Date().toISOString().slice(0,10);
+    var time=new Date().toTimeString().slice(0,5).replace(':','');
+    a.href=url;
+    a.download='serieacaro_partite_'+date+'_'+time+'.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    var totM=matches.filter(function(m){return m.played}).length;
+    var totF=matchesF.filter(function(m){return m.played}).length;
+    showToast('💾 Backup salvato! '+totM+'M + '+totF+'F partite');
+  } catch(e){
+    showToast('Errore export: '+e.message,'err');
+  }
+}
 
 function _exportData(){
   try {
@@ -1784,6 +1882,63 @@ function _doImport(d){
       showToast('Errore: '+e.message,'err');
     });
   } catch(e){window._importingBackup=false;showToast('Errore: '+e.message,'err');}
+}
+
+async function _showAdminLog(){
+  var existing=document.getElementById('adminLogPopup');
+  if(existing) existing.remove();
+  var div=document.createElement('div');
+  div.id='adminLogPopup';
+  div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px';
+  div.innerHTML='<div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:20px;max-width:500px;width:100%;max-height:80vh;display:flex;flex-direction:column">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="font-size:22px">📋</div><div style="font-family:Anton,sans-serif;font-size:18px;color:#a78bfa">LOG ACCESSI ADMIN</div><button onclick="document.getElementById(\'adminLogPopup\').remove()" style="margin-left:auto;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;font-weight:700;cursor:pointer">Chiudi</button></div>'
+    +'<div id="adminLogList" style="overflow-y:auto;flex:1"><div style="text-align:center;padding:40px;color:var(--muted)">Caricamento...</div></div>'
+    +'<div style="display:flex;gap:6px;margin-top:10px"><button onclick="_clearAdminLog()" style="flex:1;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:10px;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">🗑️ Cancella tutto</button></div>'
+    +'</div>';
+  document.body.appendChild(div);
+  try {
+    var snap=await _fbRef.child('adminLog').once('value');
+    var data=snap.val()||{};
+    var entries=Object.values(data).sort(function(a,b){return b.ts-a.ts;}).slice(0,100);
+    var listEl=document.getElementById('adminLogList');
+    if(entries.length===0){
+      listEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Nessun accesso registrato</div>';
+      return;
+    }
+    var h='';
+    entries.forEach(function(e){
+      var d=new Date(e.ts);
+      var dateStr=d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      var icon=e.success?'✅':'❌';
+      var color=e.success?'#00d68f':'#ef4444';
+      var typeLabel=e.type==='admin'?'Admin Generale':'Admin BET';
+      var ua=(e.ua||'').replace(/</g,'&lt;');
+      // Estrai info utili dallo user agent
+      var browser='Sconosciuto';
+      if(/Chrome/.test(ua)) browser='Chrome';
+      else if(/Firefox/.test(ua)) browser='Firefox';
+      else if(/Safari/.test(ua)) browser='Safari';
+      else if(/Edge/.test(ua)) browser='Edge';
+      var device='Desktop';
+      if(/Mobile|Android|iPhone|iPad/.test(ua)) device='Mobile';
+      h+='<div style="border:1px solid var(--border);border-left:3px solid '+color+';border-radius:8px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,0.02)">'
+        +'<div style="display:flex;align-items:center;gap:8px;font-size:12px"><span style="font-size:16px">'+icon+'</span><strong style="color:var(--text)">'+typeLabel+'</strong><span style="color:'+color+';font-size:10px;font-weight:700">'+(e.success?'RIUSCITO':'FALLITO')+'</span></div>'
+        +'<div style="font-size:10px;color:var(--muted);margin-top:4px">📅 '+dateStr+'</div>'
+        +'<div style="font-size:10px;color:var(--muted);margin-top:2px">🌐 IP: <span style="color:var(--text);font-family:monospace">'+(e.ip||'?')+'</span></div>'
+        +'<div style="font-size:10px;color:var(--muted);margin-top:2px">💻 '+device+' · '+browser+' · '+(e.lang||'?')+'</div>'
+        +'</div>';
+    });
+    listEl.innerHTML=h;
+  } catch(err){
+    document.getElementById('adminLogList').innerHTML='<div style="text-align:center;padding:40px;color:var(--red)">Errore: '+err.message+'</div>';
+  }
+}
+function _clearAdminLog(){
+  if(!confirm('Cancellare TUTTO il log accessi? Operazione irreversibile.')) return;
+  _fbRef.child('adminLog').remove().then(function(){
+    showToast('Log cancellato');
+    document.getElementById('adminLogPopup').remove();
+  }).catch(function(e){showToast('Errore: '+e.message,'err');});
 }
 
 function _confirmReset(){
@@ -2648,15 +2803,38 @@ function openProAdmin(){document.getElementById('proAdminPopup').style.display='
 function closeProAdmin(){document.getElementById('proAdminPopup').style.display='none';}
 async function proAdminLogin(){
   var pwd=document.getElementById('proAdminPwd');if(!pwd) return;
+  var lockUntil=parseInt(localStorage.getItem('pro_lock_until')||'0');
+  if(Date.now()<lockUntil){var mins=Math.ceil((lockUntil-Date.now())/60000);showToast('Troppi tentativi. Riprova tra '+mins+' min','err');return;}
   var hash=await hashPassword(pwd.value);
-  if(hash===PRO_ADMIN_HASH){proAdminLogged=true;document.getElementById('proAdminHeaderBtn').style.display='flex';renderProAdmin();}
-  else showToast('Password errata!','err');
+  if(hash===PRO_ADMIN_HASH){
+    localStorage.removeItem('pro_login_attempts');localStorage.removeItem('pro_lock_until');
+    proAdminLogged=true;document.getElementById('proAdminHeaderBtn').style.display='flex';renderProAdmin();
+    _logAdminAccess('proAdmin', true);
+  } else {
+    var att=parseInt(localStorage.getItem('pro_login_attempts')||'0')+1;
+    localStorage.setItem('pro_login_attempts',att);
+    if(att>=3){localStorage.setItem('pro_lock_until',Date.now()+60*60*1000);localStorage.removeItem('pro_login_attempts');showToast('Bloccato per 1 ora','err');}
+    else showToast('Password errata! Tentativi: '+(3-att),'err');
+    _logAdminAccess('proAdmin', false);
+  }
 }
 async function proAdminLoginInline(){
   var pwd=document.getElementById('proAdminPwdInline');if(!pwd) return;
+  var lockUntil=parseInt(localStorage.getItem('pro_lock_until')||'0');
+  if(Date.now()<lockUntil){var mins=Math.ceil((lockUntil-Date.now())/60000);showToast('Troppi tentativi. Riprova tra '+mins+' min','err');return;}
   var hash=await hashPassword(pwd.value);
-  if(hash===PRO_ADMIN_HASH){proAdminLogged=true;pwd.value='';document.getElementById('proAdminHeaderBtn').style.display='flex';renderPronostici();}
-  else{showToast('Password errata!','err');pwd.value='';}
+  if(hash===PRO_ADMIN_HASH){
+    localStorage.removeItem('pro_login_attempts');localStorage.removeItem('pro_lock_until');
+    proAdminLogged=true;pwd.value='';document.getElementById('proAdminHeaderBtn').style.display='flex';renderPronostici();
+    _logAdminAccess('proAdmin', true);
+  } else {
+    var att=parseInt(localStorage.getItem('pro_login_attempts')||'0')+1;
+    localStorage.setItem('pro_login_attempts',att);
+    if(att>=3){localStorage.setItem('pro_lock_until',Date.now()+60*60*1000);localStorage.removeItem('pro_login_attempts');showToast('Bloccato per 1 ora','err');}
+    else showToast('Password errata! Tentativi: '+(3-att),'err');
+    pwd.value='';
+    _logAdminAccess('proAdmin', false);
+  }
 }
 function proAdminDeleteUser(username){
   if(!confirm('Eliminare @'+username+'?')) return;
@@ -2743,6 +2921,9 @@ function renderProAdmin(){
   h+='</div>';
   h+='<div style="margin-top:8px">';
   h+='<button onclick="_triggerImport()" style="width:100%;padding:11px;background:rgba(61,142,240,0.08);border:1px solid rgba(61,142,240,0.25);color:#3d8ef0;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">📂 Ripristina backup</button>';
+  h+='</div>';
+  h+='<div style="margin-top:8px">';
+  h+='<button onclick="_showAdminLog()" style="width:100%;padding:11px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);color:#a78bfa;border-radius:var(--r);font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">📋 Log accessi admin</button>';
   h+='</div>';
     el.innerHTML=h;
 }
