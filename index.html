@@ -2161,54 +2161,121 @@ function validateName(n){
   return null;
 }
 
-function proRegister(){
+// Helper: converte username in pseudo-email per Firebase Auth
+function _usernameToEmail(username){
+  // Sostituisce caratteri non validi con underscore (per email)
+  var safe = username.toLowerCase().replace(/[^a-z0-9_]/g,'_');
+  return safe + '@serieacaro.local';
+}
+
+// Helper: padding password per Firebase (richiede min 6 caratteri)
+// Aggiunge un suffisso interno fisso, l'utente non se ne accorge
+function _padPassword(pwd){
+  return String(pwd) + '@SAC2026_pad';
+}
+
+async function proRegister(){
   if(!window._binLoadOk){showToast('Attendi il caricamento dati...','err');return;}
   var nm=document.getElementById('proRegNome'),cg=document.getElementById('proRegCognome'),u=document.getElementById('proRegU'),p=document.getElementById('proRegP'),p2=document.getElementById('proRegP2');
   if(!nm||!cg||!u||!p||!p2) return;
   var nome=nm.value.trim(),cognome=cg.value.trim(),username=u.value.trim().toLowerCase(),pwd=p.value,pwd2=p2.value;
-  // Validazione nome
   var errNome=validateName(nome)||validateName(cognome);
   if(errNome){showToast('Nome: '+errNome,'err');return;}
-  // Validazione username
   var errU=validateUsername(username);
   if(errU){showToast('Username: '+errU,'err');return;}
-  // Validazione password
   if(!pwd||pwd.length<4){showToast('Password min 4 caratteri!','err');return;}
   if(pwd!==pwd2){showToast('Le password non coincidono!','err');return;}
   var users=getUsers();
   if(users[username]){showToast('Username già in uso!','err');return;}
-  // Sanitizza prima di salvare
   var safeNome=sanitize(nome),safeCognome=sanitize(cognome),safeUsername=sanitize(username);
-  hashPassword(pwd).then(function(hashed){
-    users[safeUsername]=hashed;saveUsers(users);
+  try {
+    // Crea account Firebase Auth (le password sono hashate da Firebase server-side, non leggibili)
+    var email = _usernameToEmail(safeUsername);
+    var cred = await _fbAuth.createUserWithEmailAndPassword(email, _padPassword(pwd));
+    // Salva il mapping username (placeholder, niente più hash visibile)
+    users[safeUsername]='_fbAuth_';
+    saveUsers(users);
     var all=getAllData();
     all[safeUsername]={tokens:300,bets:0,storia:[],avatar:AVATARS[selectedAvatarIdx]||AVATARS[0],nome:safeNome,cognome:safeCognome};
-    saveAllData(all);setProSession({username:safeUsername});
-    showToast('\u{1F389} Benvenuto! 300 token gratuiti!');renderPronostici();
-  });
+    saveAllData(all);
+    setProSession({username:safeUsername});
+    showToast('🎉 Benvenuto! 300 token gratuiti!');
+    renderPronostici();
+  } catch(err){
+    if(err.code==='auth/email-already-in-use'){
+      showToast('Username già in uso!','err');
+    } else {
+      showToast('Errore registrazione: '+err.message,'err');
+    }
+  }
 }
-function proLogin(){
+
+async function proLogin(){
   if(!window._binLoadOk){showToast('Attendi il caricamento...','err');return;}
   var u=document.getElementById('proLoginU'),p=document.getElementById('proLoginP');
   if(!u||!p) return;
-  var username=u.value.trim(),pwd=p.value.trim();
+  var username=u.value.trim().toLowerCase(),pwd=p.value;
+  if(!username||!pwd){showToast('Compila tutti i campi','err');return;}
   var users=getUsers();
   if(!users[username]){showToast('Credenziali errate!','err');return;}
-  // Supporta tre formati: PBKDF2 (nuovo), SHA-256 legacy, base64 antico
-  Promise.all([hashPassword(pwd), hashPasswordLegacy(pwd)]).then(function(hashes){
+  var stored=users[username];
+  var email=_usernameToEmail(username);
+  
+  // Caso 1: utente già migrato a Firebase Auth
+  if(stored==='_fbAuth_'){
+    try {
+      await _fbAuth.signInWithEmailAndPassword(email, _padPassword(pwd));
+      setProSession({username:username});
+      showToast('✅ Bentornato!');
+      renderPronostici();
+      window._lastBinLoad=0;
+      binLoad().then(function(){renderPronostici();}).catch(function(){});
+    } catch(err){
+      showToast('Credenziali errate!','err');
+    }
+    return;
+  }
+  
+  // Caso 2: utente vecchio (PBKDF2/SHA256/base64) - verifica e MIGRA a Firebase Auth
+  try {
+    var hashes = await Promise.all([hashPassword(pwd), hashPasswordLegacy(pwd)]);
     var hPbk=hashes[0], hSha=hashes[1], hB64=btoa(pwd);
-    var stored=users[username];
-    if(stored!==hPbk && stored!==hSha && stored!==hB64){showToast('Credenziali errate!','err');return;}
-    // Se era un hash vecchio, aggiorna a PBKDF2
-    if(stored!==hPbk){users[username]=hPbk;saveUsers(users);}
+    if(stored!==hPbk && stored!==hSha && stored!==hB64){
+      showToast('Credenziali errate!','err');
+      return;
+    }
+    // Password corretta - migra a Firebase Auth
+    showToast('🔄 Aggiornamento sicurezza account...');
+    try {
+      await _fbAuth.createUserWithEmailAndPassword(email, _padPassword(pwd));
+    } catch(e){
+      // Se l'account esiste già su Firebase (es: utente migrato altrove), prova login
+      if(e.code==='auth/email-already-in-use'){
+        try { await _fbAuth.signInWithEmailAndPassword(email, _padPassword(pwd)); }
+        catch(e2){ showToast('Errore migrazione, contatta admin','err'); return; }
+      } else {
+        showToast('Errore: '+e.message,'err'); return;
+      }
+    }
+    // Aggiorna mapping locale (rimuovi hash, sostituisci con marker)
+    users[username]='_fbAuth_';
+    saveUsers(users);
     setProSession({username:username});
-    showToast('\u2705 Bentornato!');
+    showToast('✅ Bentornato! Account aggiornato.');
     renderPronostici();
     window._lastBinLoad=0;
-    binLoad().then(function(){ renderPronostici(); }).catch(function(){});
-  });
+    binLoad().then(function(){renderPronostici();}).catch(function(){});
+  } catch(err){
+    showToast('Errore login: '+err.message,'err');
+  }
 }
-function proLogout(){clearProSession();proActiveTab='scommesse';renderPronostici();}
+
+async function proLogout(){
+  try { await _fbAuth.signOut(); } catch(e){}
+  clearProSession();
+  proActiveTab='scommesse';
+  renderPronostici();
+}
 function proDeleteAccount(){
   if(!confirm('Sei sicuro di voler eliminare il tuo account? Perderai tutti i token e la storia scommesse. Questa azione è irreversibile!')) return;
   var sess=getProSession();if(!sess) return;
