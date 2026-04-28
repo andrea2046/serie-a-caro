@@ -551,6 +551,17 @@ select option{background:var(--s2)}
 // 4. Impostazioni progetto (ingranaggio) → Le tue app → Web → Copia config
 // 5. Sostituisci i valori qui sotto con i tuoi
 
+// ── ESCAPE HTML (anti-XSS) — DEVE STARE IN CIMA ──
+function _esc(s){
+  if(s===null||s===undefined) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#x27;');
+}
+
 var FIREBASE_CONFIG = {
   apiKey: "AIzaSyCiFDH2LpGRIz_PlMS0iSrGtasjyVA5ezc",
   authDomain: "serieacaro-52154.firebaseapp.com",
@@ -1030,7 +1041,7 @@ function renderTable() {
     })
     html+=`<div class="card"><div class="card-head"><div class="group-badge">${g}</div><div class="card-title">Girone ${g}</div></div>
     <table class="standings-table"><thead><tr><th>#</th><th>Squadra</th><th>PT</th><th>DR</th><th>GF</th><th>GS</th></tr></thead><tbody>
-    ${sorted.map((t,i)=>`<tr class="${i<2?'qual-row':''}"><td>${i+1}</td><td>${t}</td><td>${table[t].pt}</td><td style="color:${table[t].dr>=0?'var(--text)':'var(--red)'}">${table[t].dr>0?'+':''}${table[t].dr}</td><td>${table[t].gf}</td><td>${table[t].gs}</td></tr>`).join("")}
+    ${sorted.map((t,i)=>`<tr class="${i<2?'qual-row':''}"><td>${i+1}</td><td>${_esc(t)}</td><td>${table[t].pt|0}</td><td style="color:${table[t].dr>=0?'var(--text)':'var(--red)'}">${table[t].dr>0?'+':''}${table[t].dr|0}</td><td>${table[t].gf|0}</td><td>${table[t].gs|0}</td></tr>`).join("")}
     </tbody></table></div>`
   })
   classifica.innerHTML=html
@@ -1185,7 +1196,7 @@ function _openPoll(matchId){
 function matchRowHTML(x, isF) {
   var _isF=isF||false;
   const votes=getVotes(x.id),uv=getUserVote(x.id),total=(votes["1"]||0)+(votes["x"]||0)+(votes["2"]||0)
-  if(x.played){return `<div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill"><div class="score-pill-num">${x.g1}-${x.g2}</div></div><div class="match-team-name away">${x.b}</div></div>${x.mvp?`<div style="padding:0 12px 8px"><div class="mvp-pill">⭐ ${x.mvp}</div></div>`:''}`}
+  if(x.played){return `<div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${_esc(x.a)}</div><div class="score-pill"><div class="score-pill-num">${x.g1|0}-${x.g2|0}</div></div><div class="match-team-name away">${_esc(x.b)}</div></div>${x.mvp?`<div style="padding:0 12px 8px"><div class="mvp-pill">⭐ ${_esc(x.mvp)}</div></div>`:''}`}
   const c=uv==="1"?"#3d8ef0":uv==="x"?"#f5c518":uv==="2"?"#ff4454":null
 
   // Badge stato scommesse (visibile a tutti)
@@ -1194,9 +1205,9 @@ function matchRowHTML(x, isF) {
       ?`<div style="text-align:center;padding:3px 0 6px;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</span><button onclick="event.stopPropagation();toggleMatchLock(${x.id},${_isF})" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:var(--red);padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer">Sblocca</button></div>`
       :`<div style="text-align:center;padding:3px 0 6px;font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</div>`)
     :(admin?`<div style="text-align:center;padding:3px 0 6px"><button onclick="event.stopPropagation();toggleMatchLock(${x.id},${_isF})" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px">🔓 Blocca scommesse</button></div>`:'');
-  return `<div><div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${x.a}</div><div class="score-pill score-pill-vs" data-pollid="${x.id}" onclick="event.stopPropagation();_openPoll(${x.id})" style="${uv?'border-color:'+c+'44;background:'+c+'10':''}">
+  return `<div><div class="match-row ${admin?'clickable':''}" onclick="${admin?'openMatch('+x.id+')':''}"><div class="match-team-name home">${_esc(x.a)}</div><div class="score-pill score-pill-vs" data-pollid="${x.id}" onclick="event.stopPropagation();_openPoll(${x.id})" style="${uv?'border-color:'+c+'44;background:'+c+'10':''}">
     ${uv?`<div style="font-family:'Anton',sans-serif;font-size:16px;color:${c};letter-spacing:1px;line-height:1">${uv.toUpperCase()}</div><div style="font-size:9px;color:var(--muted);margin-top:1px">${total}v</div>`:`<div class="score-pill-vs-label">vs</div><div style="font-size:8px;color:var(--muted);margin-top:1px">vota</div>`}
-  </div><div class="match-team-name away">${x.b}</div></div>${x.date&&!x.played?'<div style="text-align:center;padding:0 0 6px;font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.5px">📅 '+_fmtDate(x.date)+' · ⏰ '+x.time+'</div>':''}${statusBar}</div>`
+  </div><div class="match-team-name away">${_esc(x.b)}</div></div>${x.date&&!x.played?'<div style="text-align:center;padding:0 0 6px;font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.5px">📅 '+_esc(_fmtDate(x.date))+' · ⏰ '+_esc(x.time)+'</div>':''}${statusBar}</div>`
 }
 
 function toggleMore(gid) {
@@ -1268,12 +1279,12 @@ function renderOggi(){
     var h='<div style="border-bottom:1px solid rgba(255,255,255,0.04)">';
     h+='<div class="oggi-match-row"'+clickAttr+' style="display:flex;align-items:center;gap:10px;padding:11px 14px;transition:background .15s'+cursorStyle+'">'
       +'<div style="width:6px;height:38px;background:'+color+';border-radius:3px;flex-shrink:0"></div>'
-      +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.a+'</div></div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(m.a)+'</div></div>'
       +'<div style="display:flex;flex-direction:column;align-items:center;min-width:62px;padding:4px 8px;background:'+bg+';border:1px solid '+border+';border-radius:8px">'
       +'<div style="font-family:Anton,sans-serif;font-size:14px;color:'+color+';line-height:1">'+m.time+'</div>'
       +'<div style="font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:0.5px">GIR. '+m.group+'</div>'
       +'</div>'
-      +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.b+'</div></div>'
+      +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(m.b)+'</div></div>'
       +'</div>';
     if(admin){
       if(m.locked){
@@ -1368,7 +1379,7 @@ function renderScorers() {
     return a.name.localeCompare(b.name);
   })
   if(!sorted.length){marcatori.innerHTML=`<div class="empty-state"><div class="empty-icon">⚽</div><div class="empty-text">Nessun gol ancora segnato</div></div>`;return}
-  marcatori.innerHTML=`<div class="card">${sorted.map((s,i)=>{const mvps=mvpCount[s.name.toLowerCase()]||0;const initials=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);const pc=i===0?'pos-1':i===1?'pos-2':i===2?'pos-3':'pos-other';return `<div class="scorer-item"><div class="scorer-pos ${pc}">${i+1}</div><div class="scorer-avatar">${playerImages[s.name]?`<img src="${playerImages[s.name]}" alt="">`:initials}</div><div class="scorer-info"><div class="scorer-name">${s.name}</div><div class="scorer-meta"><span class="meta-goals">⚽ ${s.goals}</span>${mvps?`<span>⭐ ${mvps} MVP</span>`:''}</div></div></div>`}).join("")}</div>`
+  marcatori.innerHTML=`<div class="card">${sorted.map((s,i)=>{const mvps=mvpCount[s.name.toLowerCase()]||0;const initials=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);const pc=i===0?'pos-1':i===1?'pos-2':i===2?'pos-3':'pos-other';return `<div class="scorer-item"><div class="scorer-pos ${pc}">${i+1}</div><div class="scorer-avatar">${playerImages[s.name]?`<img src="${_esc(playerImages[s.name])}" alt="">`:_esc(initials)}</div><div class="scorer-info"><div class="scorer-name">${_esc(s.name)}</div><div class="scorer-meta"><span class="meta-goals">⚽ ${s.goals|0}</span>${mvps?`<span>⭐ ${mvps|0} MVP</span>`:''}</div></div></div>`}).join("")}</div>`
 }
 
 function openMatch(id) {
@@ -1379,7 +1390,7 @@ function openMatch(id) {
 function openMatchView(m) {
   changePage('matchView')
   let html=`<button class="btn btn-back" onclick="changePage('risultati')">← Torna</button><div class="card"><div class="score-hero"><div class="score-hero-num">${m.played?m.g1+' - '+m.g2:'vs'}</div><div class="score-hero-teams"><span>${m.a}</span><span>${m.b}</span></div></div>${m.mvp?`<div style="padding:10px 14px 4px"><div class="mvp-pill">⭐ MVP: ${m.mvp}</div></div>`:''}</div>`
-  ;[['A',m.scorersA||[],m.a],['B',m.scorersB||[],m.b]].forEach(([,list,name])=>{html+=`<div class="card"><div class="card-head"><div class="group-badge">⚽</div><div class="card-title">Marcatori ${name}</div></div>${list.length?list.map(s=>{const i=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);return `<div class="scorer-item"><div class="scorer-avatar">${playerImages[s.name]?`<img src="${playerImages[s.name]}" alt="">`:i}</div><div class="scorer-info"><div class="scorer-name">${s.name}</div><div class="scorer-meta"><span class="meta-goals">⚽ ${s.goals}</span></div></div></div>`}).join(""):`<div class="empty-state" style="padding:16px"><div class="empty-text">Nessun marcatore</div></div>`}</div>`})
+  ;[['A',m.scorersA||[],m.a],['B',m.scorersB||[],m.b]].forEach(([,list,name])=>{html+=`<div class="card"><div class="card-head"><div class="group-badge">⚽</div><div class="card-title">Marcatori ${_esc(name)}</div></div>${list.length?list.map(s=>{const i=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);return `<div class="scorer-item"><div class="scorer-avatar">${playerImages[s.name]?`<img src="${_esc(playerImages[s.name])}" alt="">`:_esc(i)}</div><div class="scorer-info"><div class="scorer-name">${_esc(s.name)}</div><div class="scorer-meta"><span class="meta-goals">⚽ ${s.goals|0}</span></div></div></div>`}).join(""):`<div class="empty-state" style="padding:16px"><div class="empty-text">Nessun marcatore</div></div>`}</div>`})
   matchView.innerHTML=html
 }
 
@@ -1400,9 +1411,11 @@ function buildScorersUI(side) {
 }
 
 function addScorer(side) {
-  const name=document.getElementById('name'+side).value.trim()
-  const goals=parseInt(document.getElementById('goal'+side).value)
+  let name=document.getElementById('name'+side).value.trim()
+  // Anti-XSS: rimuovi caratteri HTML pericolosi
+  name = name.replace(/[<>&"'\\]/g,'').slice(0,40);
   if(!name) return
+  const goals=parseInt(document.getElementById('goal'+side).value)
   const arr=side==="A"?tempScorersA:tempScorersB
   const ex=arr.find(s=>s.name.toLowerCase()===name.toLowerCase())
   if(ex) ex.goals+=goals; else arr.push({name,goals})
@@ -1419,7 +1432,7 @@ function renderTemp(side) {
   const arr=side==="A"?tempScorersA:tempScorersB
   document.getElementById("list"+side).innerHTML=arr.map((s,i)=>{
     const initials=s.name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2)
-    return `<div class="p-row"><div class="p-avatar">${playerImages[s.name]?`<img src="${playerImages[s.name]}" alt="">`:initials}</div><div class="p-name">${s.name}</div><div class="p-goals">⚽ ${s.goals}</div><div class="p-actions"><label style="cursor:pointer;font-size:15px">📷<input type="file" accept="image/*" style="display:none" onchange="uploadPhoto(event,'${s.name}')"></label><button class="btn btn-danger" onclick="removeScorer('${side}',${i})">✕</button></div></div>`
+    return `<div class="p-row"><div class="p-avatar">${playerImages[s.name]?`<img src="${_esc(playerImages[s.name])}" alt="">`:_esc(initials)}</div><div class="p-name">${_esc(s.name)}</div><div class="p-goals">⚽ ${s.goals|0}</div><div class="p-actions"><label style="cursor:pointer;font-size:15px">📷<input type="file" accept="image/*" style="display:none" onchange="uploadPhoto(event,'${_esc(s.name)}')"></label><button class="btn btn-danger" onclick="removeScorer('${side}',${i})">✕</button></div></div>`
   }).join("")
 }
 
@@ -1441,7 +1454,7 @@ async function saveMatch() {
   window._savingMatch=true;
   const {matches}=activeData(), m=matches.find(x=>x.id===editMatch)
   m.g1=parseInt(g1.value)||0; m.g2=parseInt(g2.value)||0
-  m.mvp=mvp.value.trim(); m.played=true; m.locked=false // rimuovi lock dopo risultato
+  m.mvp=mvp.value.trim().replace(/[<>&"'\\]/g,'').slice(0,40); m.played=true; m.locked=false // rimuovi lock dopo risultato
   m.scorersA=[...tempScorersA]; m.scorersB=[...tempScorersB]
   rebuildScorers(); matchPop.style.display='none'
   renderMatches(); renderTable(); renderScorers(); renderOggi()
@@ -1484,7 +1497,7 @@ function addPollOpt() { const c=document.getElementById('pollOptions'),n=c.child
 function removePollOpt(btn) { const c=document.getElementById('pollOptions'); if(c.children.length<=2) return; btn.parentElement.remove() }
 function getPollData() { if(!pollBuilderOpen) return null; const q=document.getElementById('pollQuestion').value.trim(); if(!q) return null; const opts=[...document.querySelectorAll('.poll-opt-input')].map(i=>i.value.trim()).filter(Boolean); if(opts.length<2) return null; return {question:q,options:opts.map(o=>{return{label:o,votes:0}})} }
 function resetPollBuilder() { pollBuilderOpen=false; document.getElementById('pollBuilder').classList.remove('open'); document.querySelector('.toggle-poll-btn').textContent='📊 + Aggiungi sondaggio'; document.getElementById('pollQuestion').value=''; document.getElementById('pollOptions').innerHTML=`<div class="poll-option-row"><input placeholder="Opzione 1" class="poll-opt-input"><button onclick="removePollOpt(this)">✕</button></div><div class="poll-option-row"><input placeholder="Opzione 2" class="poll-opt-input"><button onclick="removePollOpt(this)">✕</button></div>` }
-function loadPollIntoBuilder(poll) { if(!poll) return; pollBuilderOpen=true; document.getElementById('pollBuilder').classList.add('open'); document.querySelector('.toggle-poll-btn').textContent='📊 Rimuovi sondaggio'; document.getElementById('pollQuestion').value=poll.question; document.getElementById('pollOptions').innerHTML=poll.options.map((o,i)=>`<div class="poll-option-row"><input placeholder="Opzione ${i+1}" class="poll-opt-input" value="${o.label}"><button onclick="removePollOpt(this)">✕</button></div>`).join('') }
+function loadPollIntoBuilder(poll) { if(!poll) return; pollBuilderOpen=true; document.getElementById('pollBuilder').classList.add('open'); document.querySelector('.toggle-poll-btn').textContent='📊 Rimuovi sondaggio'; document.getElementById('pollQuestion').value=poll.question; document.getElementById('pollOptions').innerHTML=poll.options.map((o,i)=>`<div class="poll-option-row"><input placeholder="Opzione ${i+1}" class="poll-opt-input" value="${_esc(o.label)}"><button onclick="removePollOpt(this)">✕</button></div>`).join('') }
 
 function openNewsPop() {
   editingNewsId=null; pendingMediaB64=null; pendingMediaType=null
@@ -1510,7 +1523,7 @@ function openNewsEdit(id) {
   setNewsLeague(n.league||'M'); setPinUI(n.pinned||false)
   resetPollBuilder(); if(n.poll) loadPollIntoBuilder(n.poll)
   const prev=document.getElementById('mediaPreview')
-  if(n.media) { if(n.mediaType.startsWith('image')) prev.innerHTML=`<img src="${n.media}" style="width:100%;border-radius:10px;margin-top:8px">`; else if(n.mediaType.startsWith('video')) prev.innerHTML=`<video src="${n.media}" style="width:100%;border-radius:10px;margin-top:8px" controls></video>`; else if(n.mediaType.startsWith('audio')) prev.innerHTML=`<audio src="${n.media}" style="width:100%;margin-top:8px" controls></audio>` }
+  if(n.media) { if(n.mediaType.startsWith('image')) prev.innerHTML=`<img src="${_esc(n.media)}" style="width:100%;border-radius:10px;margin-top:8px">`; else if(n.mediaType.startsWith('video')) prev.innerHTML=`<video src="${_esc(n.media)}" style="width:100%;border-radius:10px;margin-top:8px" controls></video>`; else if(n.mediaType.startsWith('audio')) prev.innerHTML=`<audio src="${_esc(n.media)}" style="width:100%;margin-top:8px" controls></audio>` }
   else prev.innerHTML=''
   document.getElementById('mediaUploadText').textContent=n.media?'✅ Media caricato':'📎 Seleziona file'
   newsPop.style.display='flex'
@@ -1565,7 +1578,7 @@ function newsPollHTML(n) {
   if(!n.poll) return ''
   const poll=n.poll,myVote=localStorage.getItem('npv_'+n.id),hasVoted=myVote!==null
   const total=poll.options.reduce((s,o)=>s+o.votes,0)
-  return `<div class="npoll-wrap"><div class="npoll-question">${poll.question}</div>${poll.options.map((o,i)=>{const pct=total===0?0:Math.round((o.votes/total)*100),isMine=hasVoted&&parseInt(myVote)===i;return `<div class="npoll-option ${hasVoted?'voted':''}" onclick="${hasVoted?'':'voteNewsPoll('+n.id+','+i+')'}"><div class="npoll-bar ${isMine?'mine':''}" style="width:${hasVoted?pct:0}%"></div><div class="npoll-dot ${isMine?'checked':''}"></div><div class="npoll-label">${o.label}</div>${hasVoted?`<div class="npoll-pct ${isMine?'mine':''}">${pct}%</div>`:''}</div>`}).join("")}<div class="npoll-footer">${total} vot${total===1?'o':'i'}${!hasVoted?' · Clicca per votare':''}</div></div>`
+  return `<div class="npoll-wrap"><div class="npoll-question">${_esc(poll.question)}</div>${poll.options.map((o,i)=>{const pct=total===0?0:Math.round((o.votes/total)*100),isMine=hasVoted&&parseInt(myVote)===i;return `<div class="npoll-option ${hasVoted?'voted':''}" onclick="${hasVoted?'':'voteNewsPoll('+n.id+','+i+')'}"><div class="npoll-bar ${isMine?'mine':''}" style="width:${hasVoted?pct:0}%"></div><div class="npoll-dot ${isMine?'checked':''}"></div><div class="npoll-label">${_esc(o.label)}</div>${hasVoted?`<div class="npoll-pct ${isMine?'mine':''}">${pct}%</div>`:''}</div>`}).join("")}<div class="npoll-footer">${total} vot${total===1?'o':'i'}${!hasVoted?' · Clicca per votare':''}</div></div>`
 }
 
 function renderNews() {
@@ -1579,12 +1592,12 @@ function renderNews() {
     const badge=lg==='M'?`<span class="news-league-badge badge-m">♂ Maschile</span>`:`<span class="news-league-badge badge-f">♀ Femminile</span>`
     const bc=lg==='M'?'rgba(245,197,24,0.2)':'rgba(244,114,182,0.2)'
     let mediaHtml=''
-    if(n.media){if(n.mediaType.startsWith('image'))mediaHtml=`<img src="${n.media}" class="news-media" alt="">`;else if(n.mediaType.startsWith('video'))mediaHtml=`<video src="${n.media}" class="news-media-video" controls playsinline></video>`;else if(n.mediaType.startsWith('audio'))mediaHtml=`<audio src="${n.media}" class="news-media-audio" controls></audio>`}
+    if(n.media){if(n.mediaType.startsWith('image'))mediaHtml=`<img src="${_esc(n.media)}" class="news-media" alt="">`;else if(n.mediaType.startsWith('video'))mediaHtml=`<video src="${_esc(n.media)}" class="news-media-video" controls playsinline></video>`;else if(n.mediaType.startsWith('audio'))mediaHtml=`<audio src="${_esc(n.media)}" class="news-media-audio" controls></audio>`}
     return `<div class="news-card ${n.pinned?'news-pinned':''}" style="border-color:${bc}" onclick="${admin?'openNewsEdit('+JSON.stringify(n.id)+')':''}">
       ${mediaHtml}<div class="news-card-head"><div class="news-avatar" style="background:${lg==='M'?'linear-gradient(135deg,#f5c518,#e8a000)':'linear-gradient(135deg,#f472b6,#ec4899)'}">${lg==='M'?'♂':'♀'}</div>
-      <div class="news-meta"><div class="news-author">SAC Admin ${badge} ${n.pinned?'<span class="pin-badge">📌 Pinnata</span>':''}</div><div class="news-date">${date}</div></div></div>
-      <div class="news-title">${n.title}</div>
-      ${n.body?`<div class="news-body">${n.body}</div>`:''}
+      <div class="news-meta"><div class="news-author">SAC Admin ${badge} ${n.pinned?'<span class="pin-badge">📌 Pinnata</span>':''}</div><div class="news-date">${_esc(date)}</div></div></div>
+      <div class="news-title">${_esc(n.title)}</div>
+      ${n.body?`<div class="news-body">${_esc(n.body).replace(/\n/g,'<br>')}</div>`:''}
       ${newsPollHTML(n)}</div>`
   }).join('')
 }
@@ -2200,7 +2213,7 @@ function openProAccountPopup(){
   el.innerHTML=
     '<div style="text-align:center;padding:10px 0 20px">'+
     '<div style="width:70px;height:70px;border-radius:50%;overflow:hidden;margin:0 auto 10px;border:3px solid rgba(245,197,24,0.5)">'+myAvatar+'</div>'+
-    '<div style="font-family:Anton,sans-serif;font-size:18px;letter-spacing:1px">'+displayName+'</div>'+
+    '<div style="font-family:Anton,sans-serif;font-size:18px;letter-spacing:1px">'+_esc(displayName)+'</div>'+
     '<div style="font-size:12px;color:var(--blue);margin-top:2px">@'+sess.username+'</div>'+
     '<div style="font-family:Anton,sans-serif;font-size:26px;color:var(--gold);margin:8px 0">🪙 '+tokens+'</div>'+
     '<div style="font-size:11px;color:var(--muted);margin-bottom:20px">'+(d?d.bets||0:0)+' scommesse piazzate</div>'+
@@ -2987,11 +3000,11 @@ function renderProAdmin(){
       var dn=(d.nome&&d.cognome)?d.nome+' '+d.cognome:uname;
       var av=d.avatar||AVATARS[0];
       h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:8px">';
-      h+='<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+av+'</div>';
+      h+='<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+_esc(av)+'</div>';
       var _pending=(d.storia||[]).filter(function(s){return s.status==='pending'});
       h+='<div style="flex:1">';
-      h+='<div style="font-weight:700;font-size:13px">'+dn+'</div>';
-      h+='<div style="font-size:10px;color:var(--blue)">@'+uname+'</div>';
+      h+='<div style="font-weight:700;font-size:13px">'+_esc(dn)+'</div>';
+      h+='<div style="font-size:10px;color:var(--blue)">@'+_esc(uname)+'</div>';
       h+='<div style="font-size:11px;color:var(--muted)">🪙 '+(d.tokens||0)+' · '+(d.bets||0)+' bet'+(_pending.length?' · <span style="color:var(--gold)">'+_pending.length+' pending</span>':'')+'</div>';
       h+='</div>';
       h+='<div style="display:flex;gap:6px;flex-shrink:0">';
@@ -3077,10 +3090,10 @@ function renderPronostici(){
 
   // Topbar
   h+='<div class="pro-topbar">';
-  h+='<div class="pro-topbar-av" onclick="openProAccountPopup()" style="cursor:pointer">'+myAvatar+'</div>';
+  h+='<div class="pro-topbar-av" onclick="openProAccountPopup()" style="cursor:pointer">'+_esc(myAvatar)+'</div>';
   h+='<div class="pro-topbar-info">';
-  h+='<div class="pro-token-num">🪙 '+tokens+'</div>';
-  h+='<div class="pro-token-lbl">'+displayName+'</div>';
+  h+='<div class="pro-token-num">🪙 '+(tokens|0)+'</div>';
+  h+='<div class="pro-token-lbl">'+_esc(displayName)+'</div>';
   h+='</div>';
   h+='<div style="display:flex;gap:6px">';
   h+='<button onclick="refreshPro()" style="background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.2);color:var(--blue);padding:7px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:12px;cursor:pointer">↺</button>';
@@ -3166,7 +3179,7 @@ function renderPronostici(){
         var _open=openDetails[_mid];
         h+='<div class="pro-match-card">';
         h+='<div class="pro-match-hd" onclick="proToggleDetail(\''+_mid+'\')"><div>';
-        h+='<div class="pro-match-name">'+_m.a+' <span style="color:var(--muted);font-size:10px">vs</span> '+_m.b+'</div>';
+        h+='<div class="pro-match-name">'+_esc(_m.a)+' <span style="color:var(--muted);font-size:10px">vs</span> '+_esc(_m.b)+'</div>';
         h+='<div class="pro-match-sub">Girone '+_m.group+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+' <span style="color:var(--muted)">'+(_open?'▴':'▾')+'</span></div>';
         h+='</div><div class="pro-1x2">';
         h+='<div class="pro-qb'+(_selLbl==='1'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'1\','+_q.q1+')"><span class="pro-qb-l">1</span><span class="pro-qb-v">'+_q.q1+'</span></div>';
@@ -3201,7 +3214,7 @@ function renderPronostici(){
       h+='<div class="pro-sched-wrap"><div class="pro-sched-hd"><div class="pro-sched-title">📋 SCHEDINA ('+proSchedina.length+')</div><button class="pro-sched-rst" onclick="proReset()">✕ Svuota</button></div>';
       for(var _si=0;_si<proSchedina.length;_si++){
         var _b=proSchedina[_si];
-        h+='<div class="pro-bet-item"><div class="pro-bet-txt"><div class="pro-bet-teams">'+_b.teamA+' vs '+_b.teamB+(_b.isF?' <span style="font-size:9px;color:var(--pink)">♀</span>':'')+'</div><div class="pro-bet-mkt">'+_b.label+'</div></div><div class="pro-bet-odd">'+_b.odd+'</div><button class="pro-bet-rm" onclick="proRemoveBet(\''+_b.matchId+'\',\''+_b.market+'\')">✕</button></div>';
+        h+='<div class="pro-bet-item"><div class="pro-bet-txt"><div class="pro-bet-teams">'+_esc(_b.teamA)+' vs '+_esc(_b.teamB)+(_b.isF?' <span style="font-size:9px;color:var(--pink)">♀</span>':'')+'</div><div class="pro-bet-mkt">'+_esc(_b.label)+'</div></div><div class="pro-bet-odd">'+_esc(_b.odd)+'</div><button class="pro-bet-rm" onclick="proRemoveBet(\''+_esc(_b.matchId)+'\',\''+_esc(_b.market)+'\')">✕</button></div>';
       }
       h+='<div class="pro-sched-ft"><div class="pro-qt-row"><span class="pro-qt-lbl">Quota totale</span><span class="pro-qt-val">'+qt+'x</span></div>';
       h+='<input type="number" class="pro-stake-in" value="'+proPuntata+'" min="1" max="'+tokens+'" oninput="_updateStake(this.value)" placeholder="Puntata (token)">';
@@ -3223,16 +3236,16 @@ function renderPronostici(){
       var _r=_rank[_ri],_pc=['rk1','rk2','rk3','rk4'][Math.min(_ri,3)];
       var _me=_r.name===sess.username,_dn=(_r.nome&&_r.cognome)?_r.nome+' '+_r.cognome:_r.name;
       h+='<div class="pro-rank-row" style="'+(_me?'background:rgba(245,197,24,0.06);border-left:2px solid var(--gold)':'')+'">';
-      h+='<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+_r.avatar+'</div>';
+      h+='<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+_esc(_r.avatar)+'</div>';
       h+='<div class="pro-rk-pos '+_pc+'">'+(_ri+1)+'</div>';
-      h+='<div style="flex:1"><div class="pro-rk-name">'+_dn+(_me?' <span style="font-size:10px;color:var(--gold)">(tu)</span>':'')+'</div>';
+      h+='<div style="flex:1"><div class="pro-rk-name">'+_esc(_dn)+(_me?' <span style="font-size:10px;color:var(--gold)">(tu)</span>':'')+'</div>';
       h+='<div style="display:flex;gap:8px;margin-top:2px">';
-      h+='<span style="font-size:9px;color:var(--muted)">@'+_r.name+'</span>';
-      if(_r.played>0){h+='<span style="font-size:9px;color:'+(_r.winPct>=50?'var(--green)':'var(--red)')+'">'+_r.winPct+'% W</span>';}
+      h+='<span style="font-size:9px;color:var(--muted)">@'+_esc(_r.name)+'</span>';
+      if(_r.played>0){h+='<span style="font-size:9px;color:'+(_r.winPct>=50?'var(--green)':'var(--red)')+'">'+(_r.winPct|0)+'% W</span>';}
       if(_r.avgQ>0){h+='<span style="font-size:9px;color:var(--muted)">Q.avg '+_r.avgQ+'x</span>';}
       h+='</div></div>';
-      h+='<div style="text-align:right"><div class="pro-rk-tok">🪙 '+_r.tokens+'</div>';
-      if(_r.played>0){h+='<div style="font-size:9px;color:var(--muted);margin-top:2px">'+_r.wins+'V '+_r.losses+'P</div>';}
+      h+='<div style="text-align:right"><div class="pro-rk-tok">🪙 '+(_r.tokens|0)+'</div>';
+      if(_r.played>0){h+='<div style="font-size:9px;color:var(--muted);margin-top:2px">'+(_r.wins|0)+'V '+(_r.losses|0)+'P</div>';}
       h+='</div></div>';
     }
     h+='</div>';
@@ -3275,7 +3288,7 @@ function renderPronostici(){
         h+='<div class="pro-st-detail open">';
         for(var _di=0;_di<_s.schedina.length;_di++){
           var _sd=_s.schedina[_di];
-          h+='<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)"><div><div style="font-weight:600">'+_sd.teamA+' vs '+_sd.teamB+'</div><div style="color:var(--gold)">'+_sd.label+'</div></div><div style="font-family:Anton,sans-serif;font-size:14px;color:var(--gold)">'+_sd.odd+'</div></div>';
+          h+='<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)"><div><div style="font-weight:600">'+_esc(_sd.teamA)+' vs '+_esc(_sd.teamB)+'</div><div style="color:var(--gold)">'+_esc(_sd.label)+'</div></div><div style="font-family:Anton,sans-serif;font-size:14px;color:var(--gold)">'+_esc(_sd.odd)+'</div></div>';
         }
         h+='<div style="margin-top:6px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>Puntata: 🪙'+_s.puntata+'</span><span>Quota: '+_s.qt+'x</span><span>Vincita: 🪙'+_s.vincita+'</span></div></div>';
       }
