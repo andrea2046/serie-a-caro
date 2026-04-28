@@ -562,6 +562,20 @@ function _esc(s){
     .replace(/'/g,'&#x27;');
 }
 
+// Restituisce l'avatar se è un SVG sicuro (non contiene script/event handlers), altrimenti fallback
+function _safeAvatar(av){
+  if(!av) return (typeof AVATARS!=='undefined'?AVATARS[0]:'');
+  var s = String(av);
+  // Deve essere un SVG
+  if(s.indexOf('<svg')!==0) return (typeof AVATARS!=='undefined'?AVATARS[0]:'');
+  // Non deve contenere script o event handlers
+  var lower = s.toLowerCase();
+  if(lower.indexOf('<script')>=0 || lower.indexOf('javascript:')>=0 || lower.match(/\son\w+\s*=/)) {
+    return (typeof AVATARS!=='undefined'?AVATARS[0]:'');
+  }
+  return s;
+}
+
 var FIREBASE_CONFIG = {
   apiKey: "AIzaSyCiFDH2LpGRIz_PlMS0iSrGtasjyVA5ezc",
   authDomain: "serieacaro-52154.firebaseapp.com",
@@ -2206,7 +2220,7 @@ function proDeleteAccount(){
 function openProAccountPopup(){
   var sess=getProSession(); if(!sess) return;
   var d=getMyData();
-  var myAvatar=(d&&d.avatar)?d.avatar:AVATARS[0];
+  var myAvatar=_safeAvatar((d&&d.avatar)||AVATARS[0]);
   var displayName=(d&&d.nome&&d.cognome)?d.nome+' '+d.cognome:sess.username;
   var tokens=d?d.tokens:0;
   var el=document.getElementById('proAccountPopupContent');
@@ -2998,9 +3012,9 @@ function renderProAdmin(){
     for(var i=0;i<entries.length;i++){
       var uname=entries[i][0], d=entries[i][1];
       var dn=(d.nome&&d.cognome)?d.nome+' '+d.cognome:uname;
-      var av=d.avatar||AVATARS[0];
+      var av=_safeAvatar(d.avatar||AVATARS[0]);
       h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:8px">';
-      h+='<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+_esc(av)+'</div>';
+      h+='<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+av+'</div>';
       var _pending=(d.storia||[]).filter(function(s){return s.status==='pending'});
       h+='<div style="flex:1">';
       h+='<div style="font-weight:700;font-size:13px">'+_esc(dn)+'</div>';
@@ -3084,13 +3098,13 @@ function renderPronostici(){
   var adsLeft=3-getAdsToday();
   var wheelReady=!getWheelSpunToday();
   var displayName=(d&&d.nome&&d.cognome)?d.nome+' '+d.cognome:sess.username;
-  var myAvatar=(d&&d.avatar)?d.avatar:AVATARS[0];
+  var myAvatar=_safeAvatar((d&&d.avatar)||AVATARS[0]);
   var qt=proQT(),vincita=Math.round(proPuntata*qt);
   var h='';
 
   // Topbar
   h+='<div class="pro-topbar">';
-  h+='<div class="pro-topbar-av" onclick="openProAccountPopup()" style="cursor:pointer">'+_esc(myAvatar)+'</div>';
+  h+='<div class="pro-topbar-av" onclick="openProAccountPopup()" style="cursor:pointer">'+myAvatar+'</div>';
   h+='<div class="pro-topbar-info">';
   h+='<div class="pro-token-num">🪙 '+(tokens|0)+'</div>';
   h+='<div class="pro-token-lbl">'+_esc(displayName)+'</div>';
@@ -3236,7 +3250,7 @@ function renderPronostici(){
       var _r=_rank[_ri],_pc=['rk1','rk2','rk3','rk4'][Math.min(_ri,3)];
       var _me=_r.name===sess.username,_dn=(_r.nome&&_r.cognome)?_r.nome+' '+_r.cognome:_r.name;
       h+='<div class="pro-rank-row" style="'+(_me?'background:rgba(245,197,24,0.06);border-left:2px solid var(--gold)':'')+'">';
-      h+='<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+_esc(_r.avatar)+'</div>';
+      h+='<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;pointer-events:none">'+_safeAvatar(_r.avatar)+'</div>';
       h+='<div class="pro-rk-pos '+_pc+'">'+(_ri+1)+'</div>';
       h+='<div style="flex:1"><div class="pro-rk-name">'+_esc(_dn)+(_me?' <span style="font-size:10px;color:var(--gold)">(tu)</span>':'')+'</div>';
       h+='<div style="display:flex;gap:8px;margin-top:2px">';
