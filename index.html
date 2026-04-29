@@ -2276,6 +2276,134 @@ async function proLogout(){
   proActiveTab='scommesse';
   renderPronostici();
 }
+
+// ── LOGIN UTENTE CON GOOGLE ──
+async function proLoginGoogle(){
+  if(!window._binLoadOk){showToast('Attendi il caricamento...','err');return;}
+  try {
+    var provider = new firebase.auth.GoogleAuthProvider();
+    var result = await _fbAuth.signInWithPopup(provider);
+    var user = result.user;
+    if(!user) return;
+    
+    // Cerca se questo Google UID è già collegato a un account esistente
+    var users = getUsers();
+    var allData = getAllData();
+    var foundUsername = null;
+    Object.keys(allData).forEach(function(uname){
+      if(allData[uname]._googleUid===user.uid) foundUsername=uname;
+    });
+    
+    if(foundUsername){
+      // Già registrato in passato con questo Google: login diretto
+      setProSession({username:foundUsername});
+      showToast('✅ Bentornato!');
+      renderPronostici();
+      window._lastBinLoad=0;
+      binLoad().then(function(){renderPronostici();}).catch(function(){});
+    } else {
+      // Primo accesso con Google: mostra popup onboarding
+      _showGoogleOnboarding(user);
+    }
+  } catch(err){
+    if(err.code==='auth/popup-closed-by-user') return;
+    showToast('Errore login Google: '+err.message,'err');
+  }
+}
+
+// Popup di onboarding al primo accesso Google
+function _showGoogleOnboarding(user){
+  var existing=document.getElementById('googleOnboardPopup');
+  if(existing) existing.remove();
+  // Pre-riempi nome/cognome dal Google profile se disponibili
+  var displayName = user.displayName||'';
+  var parts = displayName.split(' ');
+  var preNome = parts[0]||'';
+  var preCognome = parts.slice(1).join(' ')||'';
+  // Username suggerito da email
+  var preUsername = (user.email||'').split('@')[0].replace(/[^a-zA-Z0-9_-]/g,'').toLowerCase().slice(0,20);
+  
+  var div=document.createElement('div');
+  div.id='googleOnboardPopup';
+  div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px';
+  
+  var avatarOptions='';
+  AVATARS.forEach(function(av,i){
+    avatarOptions+='<div onclick="_selectGoogleAvatar('+i+')" id="gOnbAv_'+i+'" style="width:50px;height:50px;border-radius:50%;overflow:hidden;cursor:pointer;border:2px solid '+(i===0?'var(--gold)':'transparent')+';transition:all .15s">'+av+'</div>';
+  });
+  
+  div.innerHTML='<div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:24px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto">'+
+    '<div style="text-align:center;margin-bottom:18px">'+
+    '<div style="font-size:38px;margin-bottom:8px">🎉</div>'+
+    '<div style="font-family:Anton,sans-serif;font-size:22px;letter-spacing:2px;color:var(--gold)">CREA IL TUO ACCOUNT</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:4px">Completa il profilo per iniziare</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
+    '<input class="pro-ri" id="gOnbNome" placeholder="Nome" value="'+_esc(preNome)+'" style="margin-bottom:0">'+
+    '<input class="pro-ri" id="gOnbCognome" placeholder="Cognome" value="'+_esc(preCognome)+'" style="margin-bottom:0">'+
+    '</div>'+
+    '<input class="pro-ri" id="gOnbU" placeholder="Username" value="'+_esc(preUsername)+'">'+
+    '<div style="font-size:11px;color:var(--muted);margin:6px 0 10px">Solo lettere, numeri, _ e -</div>'+
+    '<div style="font-size:12px;font-weight:700;color:var(--text);margin:8px 0">Scegli avatar</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;justify-content:center">'+avatarOptions+'</div>'+
+    '<button onclick="_completeGoogleSignup()" style="width:100%;padding:12px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Anton,sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;font-weight:700">CONFERMA</button>'+
+    '<button onclick="_cancelGoogleSignup()" style="width:100%;padding:10px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;margin-top:8px;cursor:pointer;font-size:12px">Annulla</button>'+
+    '</div>';
+  document.body.appendChild(div);
+  window._gOnbAvIdx=0;
+  window._gOnbUser=user;
+}
+
+function _selectGoogleAvatar(idx){
+  window._gOnbAvIdx=idx;
+  AVATARS.forEach(function(_,i){
+    var el=document.getElementById('gOnbAv_'+i);
+    if(el) el.style.borderColor=(i===idx?'var(--gold)':'transparent');
+  });
+}
+
+async function _completeGoogleSignup(){
+  var user=window._gOnbUser;
+  if(!user){showToast('Errore','err');return;}
+  var nome=document.getElementById('gOnbNome').value.trim();
+  var cognome=document.getElementById('gOnbCognome').value.trim();
+  var username=document.getElementById('gOnbU').value.trim().toLowerCase();
+  var avIdx=window._gOnbAvIdx||0;
+  
+  var errN=validateName(nome)||validateName(cognome);
+  if(errN){showToast('Nome: '+errN,'err');return;}
+  var errU=validateUsername(username);
+  if(errU){showToast('Username: '+errU,'err');return;}
+  
+  var users=getUsers();
+  if(users[username]){showToast('Username già in uso!','err');return;}
+  
+  var safeNome=sanitize(nome),safeCognome=sanitize(cognome),safeUsername=sanitize(username);
+  
+  // Crea l'account: associato al Google UID, niente password locale (Firebase gestisce auth)
+  users[safeUsername]='_fbAuth_';
+  saveUsers(users);
+  var all=getAllData();
+  all[safeUsername]={
+    tokens:300,
+    bets:0,
+    storia:[],
+    avatar:AVATARS[avIdx]||AVATARS[0],
+    nome:safeNome,
+    cognome:safeCognome,
+    _googleUid:user.uid // Lega questo account al Google UID
+  };
+  saveAllData(all);
+  setProSession({username:safeUsername});
+  document.getElementById('googleOnboardPopup').remove();
+  showToast('🎉 Benvenuto! 300 token gratuiti!');
+  renderPronostici();
+}
+
+async function _cancelGoogleSignup(){
+  document.getElementById('googleOnboardPopup').remove();
+  try { await _fbAuth.signOut(); } catch(e){}
+}
 function proDeleteAccount(){
   if(!confirm('Sei sicuro di voler eliminare il tuo account? Perderai tutti i token e la storia scommesse. Questa azione è irreversibile!')) return;
   var sess=getProSession();if(!sess) return;
@@ -2492,14 +2620,32 @@ function proToggleDetail(id){openDetails[id]=!openDetails[id];renderPronostici()
 
 function getShuffledMatches(mList,isF){
   var notPlayed=mList.filter(function(m){return !m.played});
-  // Ordina per girone A→B→C→D poi per id
+  // Data di oggi YYYY-MM-DD
+  var _now=new Date();
+  var _today=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
   var arr=notPlayed.map(function(m){return{m:m,isF:isF}});
   arr.sort(function(a,b){
+    // Priorità 1: partite di oggi prima
+    var aIsToday=(a.m.date===_today)?0:1;
+    var bIsToday=(b.m.date===_today)?0:1;
+    if(aIsToday!==bIsToday) return aIsToday-bIsToday;
+    // Priorità 2: tra partite di oggi → ordina per orario
+    if(aIsToday===0 && bIsToday===0){
+      if(a.m.time && b.m.time){
+        if(a.m.time<b.m.time) return -1;
+        if(a.m.time>b.m.time) return 1;
+      }
+    }
+    // Priorità 3: per data prossima futura (le più vicine prima)
+    if(a.m.date && b.m.date && a.m.date!==b.m.date){
+      return a.m.date<b.m.date?-1:1;
+    }
+    // Fallback: per girone, poi per id
     if(a.m.group<b.m.group) return -1;
     if(a.m.group>b.m.group) return 1;
     return a.m.id-b.m.id;
   });
-  return arr; // tutte le partite
+  return arr;
 }
 
 
@@ -3148,10 +3294,21 @@ function renderPronostici(){
         '<div style="font-family:Anton,sans-serif;font-size:34px;letter-spacing:3px;background:linear-gradient(90deg,var(--gold),#fff,var(--gold));background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 4s linear infinite">Pronostici</div>'+
         '<div style="font-size:12px;color:var(--muted);margin-top:6px">Fai le tue previsioni, vinci token</div>'+
         '</div>'+
+        '<div style="background:linear-gradient(135deg,rgba(245,197,24,0.15),rgba(245,197,24,0.05));border:1px solid rgba(245,197,24,0.4);border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:flex-start">'+
+        '<div style="font-size:22px;flex-shrink:0">🔐</div>'+
+        '<div style="flex:1">'+
+        '<div style="font-weight:700;font-size:13px;color:var(--gold);margin-bottom:4px">AGGIORNAMENTO SICUREZZA</div>'+
+        '<div style="font-size:11px;color:var(--text);line-height:1.5">È stato attivato un nuovo sistema di protezione account. <strong>Effettua il login una volta</strong> con la tua password attuale per migrare automaticamente l\'account al nuovo sistema sicuro.</div>'+
+        '</div>'+
+        '</div>'+
         '<div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:10px">'+
         '<input class="pro-ri" id="proLoginU" placeholder="Username">'+
         '<input class="pro-ri" id="proLoginP" type="password" placeholder="Password">'+
         '<button class="pro-reg-btn" onclick="proLogin()">Accedi</button>'+
+        '<div style="display:flex;align-items:center;gap:10px;margin:14px 0 12px"><div style="flex:1;height:1px;background:var(--border)"></div><span style="font-size:10px;color:var(--muted);font-weight:600">OPPURE</span><div style="flex:1;height:1px;background:var(--border)"></div></div>'+
+        '<button onclick="proLoginGoogle()" style="width:100%;padding:12px;background:#fff;color:#202124;border:1px solid #dadce0;border-radius:12px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">'+
+        '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>'+
+        'Accedi con Google</button>'+
         '</div>'+
         '<div style="text-align:center;font-size:13px;color:var(--muted)">Non hai un account? <span style="color:var(--gold);cursor:pointer;font-weight:700" onclick="proAuthMode=\'register\';renderPronostici()">Registrati gratis</span></div>'+
         '<div style="text-align:center;margin-top:20px"><span style="font-size:11px;color:var(--muted);cursor:pointer" onclick="openProAdmin()">⚙️ Accesso Admin</span></div>';
@@ -3168,6 +3325,21 @@ function renderPronostici(){
   var myAvatar=_safeAvatar((d&&d.avatar)||AVATARS[0]);
   var qt=proQT(),vincita=Math.round(proPuntata*qt);
   var h='';
+  
+  // Banner migrazione: utenti col vecchio sistema (hash visibile, non Firebase Auth)
+  var _myUsers=getUsers();
+  var _stillLegacy = _myUsers[sess.username] && _myUsers[sess.username]!=='_fbAuth_';
+  var _notFbAuth = !_currentAuthUser; // nessuna sessione Firebase Auth attiva
+  if(_stillLegacy || _notFbAuth){
+    h+='<div style="background:linear-gradient(135deg,rgba(245,197,24,0.15),rgba(245,197,24,0.05));border:1px solid rgba(245,197,24,0.4);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center">'+
+      '<div style="font-size:20px;flex-shrink:0">🔐</div>'+
+      '<div style="flex:1">'+
+      '<div style="font-weight:700;font-size:12px;color:var(--gold);margin-bottom:3px">Aggiornamento sicurezza disponibile</div>'+
+      '<div style="font-size:10px;color:var(--text);line-height:1.4">Il tuo account è ancora sul vecchio sistema. Esci e rientra per migrare al nuovo sistema sicuro.</div>'+
+      '</div>'+
+      '<button onclick="proLogout()" style="background:var(--gold);color:#000;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;flex-shrink:0">Esci</button>'+
+      '</div>';
+  }
 
   // Topbar
   h+='<div class="pro-topbar">';
@@ -3244,11 +3416,33 @@ function renderPronostici(){
     if(!_upcoming.length){
       h+='<div class="card"><div style="padding:20px;text-align:center;color:var(--muted)">Nessuna partita disponibile 🎉</div></div>';
     } else {
-      var _lastGroup='';
+      // Calcola data di oggi
+      var _now2=new Date();
+      var _today2=_now2.getFullYear()+'-'+String(_now2.getMonth()+1).padStart(2,'0')+'-'+String(_now2.getDate()).padStart(2,'0');
+      var _lastSep='';
+      var _shownTodayHeader=false, _shownNextHeader=false;
       for(var _ui=0;_ui<_upcoming.length;_ui++){
-        if(_upcoming[_ui].m.group!==_lastGroup){
-          _lastGroup=_upcoming[_ui].m.group;
-          h+='<div class="pro-group-sep">Girone '+_lastGroup+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
+        var _curIsToday=(_upcoming[_ui].m.date===_today2);
+        if(_curIsToday && !_shownTodayHeader){
+          h+='<div class="pro-group-sep" style="background:linear-gradient(135deg,rgba(245,197,24,0.2),rgba(245,197,24,0.05));color:var(--gold);border:1px solid rgba(245,197,24,0.4)">🔴 OGGI · Partite del giorno</div>';
+          _shownTodayHeader=true;
+          _lastSep='today';
+        } else if(!_curIsToday){
+          if(!_shownNextHeader){
+            h+='<div class="pro-group-sep">📅 PROSSIME PARTITE</div>';
+            _shownNextHeader=true;
+            _lastSep='next';
+          }
+          // Sotto le prossime, separa per girone
+          var _curGroupKey=_upcoming[_ui].m.group+(_upcoming[_ui].isF?'_F':'_M');
+          if(_curGroupKey!==_lastSep && _lastSep!=='next'){
+            h+='<div class="pro-group-sep" style="font-size:11px;opacity:0.7">Girone '+_upcoming[_ui].m.group+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
+            _lastSep=_curGroupKey;
+          } else if(_lastSep==='next'){
+            // dopo l'header generale, prima del primo girone
+            h+='<div class="pro-group-sep" style="font-size:11px;opacity:0.7">Girone '+_upcoming[_ui].m.group+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
+            _lastSep=_curGroupKey;
+          }
         }
         var _um=_upcoming[_ui],_m=_um.m;
         var _mid=_um.isF?('f'+_m.id):String(_m.id);
