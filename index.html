@@ -3200,6 +3200,90 @@ function _resetUser(idx){
   renderProAdmin();
 }
 
+function _modifyUserTokens(idx){
+  var uname=window._pau[idx];
+  if(!uname)return;
+  var all=JSON.parse(localStorage.getItem('sac_pro_data')||'{}');
+  if(!all[uname])return;
+  var current=all[uname].tokens||0;
+  var input=prompt('Modifica token per @'+uname+'\n\nToken attuali: '+current+'\n\nInserisci:\n• Numero positivo = aggiungi (es: 100)\n• Numero negativo = togli (es: -50)\n• "=N" = imposta esattamente (es: =500)','100');
+  if(input===null||input==='') return;
+  input=String(input).trim();
+  var newTokens;
+  if(input.charAt(0)==='='){
+    newTokens=parseInt(input.slice(1))||0;
+  } else {
+    var delta=parseInt(input)||0;
+    newTokens=current+delta;
+  }
+  if(newTokens<0) newTokens=0;
+  if(newTokens>100000){showToast('Max 100000 token','err');return;}
+  if(!confirm('Conferma:\n@'+uname+'\nDa '+current+' a '+newTokens+' token')) return;
+  all[uname].tokens=newTokens;
+  localStorage.setItem('sac_pro_data',JSON.stringify(all));
+  setSyncStatus('loading','Aggiornamento token...');
+  fbWritePath('proData/'+uname.replace(/[.#$/\[\]]/g,'_'), all[uname])
+  .then(function(){setSyncStatus('ok','Token aggiornati ✓');showToast('@'+uname+': '+newTokens+' token');renderProAdmin();})
+  .catch(function(e){setSyncStatus('err','Errore');showToast('Errore: '+e.message,'err');});
+}
+
+async function _resetUserPassword(idx){
+  var uname=window._pau[idx];
+  if(!uname)return;
+  // Genera password temporanea casuale
+  var chars='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  var newPwd='';
+  for(var i=0;i<8;i++){newPwd+=chars.charAt(Math.floor(Math.random()*chars.length));}
+  if(!confirm('Resettare la password di @'+uname+'?\n\nNuova password: '+newPwd+'\n\nMandala all\'utente. Lui potrà accedere e poi cambiarla.'))return;
+  var users=getUsers();
+  if(!users[uname]){showToast('Utente non trovato','err');return;}
+  try {
+    var email = _usernameToEmail(uname);
+    // Caso 1: utente già su Firebase Auth → serve un altro metodo (password reset email impossibile con email finte)
+    // Soluzione: cancella l'account Firebase e ricrealo con la nuova password
+    if(users[uname]==='_fbAuth_'){
+      // Non possiamo eliminare account Firebase di un altro utente da client.
+      // Soluzione: forziamo migrazione invertita - settiamo hash legacy nel DB così il prossimo login userà nuova password e ri-migrerà.
+      var newHash = await hashPassword(newPwd);
+      users[uname]=newHash;
+      saveUsers(users);
+      showToast('Password resettata!');
+      // Mostra popup con la password
+      _showPasswordPopup(uname, newPwd);
+    } else {
+      // Caso 2: utente vecchio → semplicemente sovrascriviamo l'hash
+      var newHash2 = await hashPassword(newPwd);
+      users[uname]=newHash2;
+      saveUsers(users);
+      showToast('Password resettata!');
+      _showPasswordPopup(uname, newPwd);
+    }
+  } catch(err){
+    showToast('Errore: '+err.message,'err');
+  }
+}
+
+function _showPasswordPopup(uname, pwd){
+  var existing=document.getElementById('pwdResetPopup');
+  if(existing) existing.remove();
+  var div=document.createElement('div');
+  div.id='pwdResetPopup';
+  div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px';
+  div.innerHTML='<div style="background:var(--s2);border:1px solid var(--gold);border-radius:var(--r);padding:24px;max-width:400px;width:100%">'+
+    '<div style="text-align:center;margin-bottom:16px"><div style="font-size:38px;margin-bottom:8px">🔑</div>'+
+    '<div style="font-family:Anton,sans-serif;font-size:20px;letter-spacing:2px;color:var(--gold)">PASSWORD RESETTATA</div></div>'+
+    '<div style="font-size:13px;color:var(--text);margin-bottom:14px">Account: <strong>@'+_esc(uname)+'</strong></div>'+
+    '<div style="background:rgba(245,197,24,0.1);border:1px dashed var(--gold);border-radius:8px;padding:12px;margin-bottom:14px;text-align:center">'+
+    '<div style="font-size:10px;color:var(--muted);margin-bottom:4px">PASSWORD TEMPORANEA</div>'+
+    '<div style="font-family:monospace;font-size:20px;font-weight:700;color:var(--gold);letter-spacing:2px">'+_esc(pwd)+'</div>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:14px">Manda questa password all\'utente. Lui potrà accedere e dovrà rifare login per attivare la sicurezza.</div>'+
+    '<button onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+pwd+'\');showToast(\'Password copiata!\')" style="width:100%;padding:10px;background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.3);color:var(--blue);border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:8px">📋 Copia password</button>'+
+    '<button onclick="document.getElementById(\'pwdResetPopup\').remove()" style="width:100%;padding:10px;background:var(--gold);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer">Ho fatto, chiudi</button>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
 function renderProAdmin(){
   var el=document.getElementById('proAdminContent');
   if(!el) return;
@@ -3236,6 +3320,8 @@ function renderProAdmin(){
       h+='</div>';
       h+='<div style="display:flex;gap:6px;flex-shrink:0">';
       h+='<button onclick="_resetUser('+i+')" style="background:rgba(245,197,24,0.1);border:1px solid rgba(245,197,24,0.3);color:#f5c518;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1F504; Reset</button>';
+      h+='<button onclick="_modifyUserTokens('+i+')" style="background:rgba(0,214,143,0.1);border:1px solid rgba(0,214,143,0.3);color:#00d68f;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1FA99; Token</button>';
+      h+='<button onclick="_resetUserPassword('+i+')" style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);color:#a78bfa;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1F511; Pwd</button>';
       h+='<button onclick="_delUser('+i+')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#ef4444;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1F5D1; Elimina</button>';
       h+='</div>';
       h+='</div>';
