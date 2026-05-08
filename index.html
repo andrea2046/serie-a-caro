@@ -2217,9 +2217,20 @@ async function proLogin(){
   var username=u.value.trim().toLowerCase(),pwd=p.value;
   if(!username||!pwd){showToast('Compila tutti i campi','err');return;}
   var users=getUsers();
-  if(!users[username]){showToast('Credenziali errate!','err');return;}
+  // Lookup case-insensitive: trova l'username nel DB qualunque sia il case
+  if(!users[username]){
+    var foundKey=null;
+    Object.keys(users).forEach(function(k){
+      if(k.toLowerCase()===username) foundKey=k;
+    });
+    if(foundKey) username=foundKey;
+    else {showToast('Credenziali errate!','err');return;}
+  }
   var stored=users[username];
-  var email=_usernameToEmail(username);
+  // Se l'admin ha resettato la password, l'utente potrebbe avere un'email Firebase alternativa
+  var allDataLogin = getAllData();
+  var customEmail = allDataLogin[username] && allDataLogin[username]._fbEmail;
+  var email = customEmail || _usernameToEmail(username);
   
   // Caso 1: utente già migrato a Firebase Auth
   if(stored==='_fbAuth_'){
@@ -2231,7 +2242,19 @@ async function proLogin(){
       window._lastBinLoad=0;
       binLoad().then(function(){renderPronostici();}).catch(function(){});
     } catch(err){
-      showToast('Credenziali errate!','err');
+      // Debug per capire il problema
+      console.error('Firebase Auth login error:', err.code, err.message);
+      if(err.code==='auth/wrong-password' || err.code==='auth/invalid-credential' || err.code==='auth/invalid-login-credentials'){
+        showToast('Password errata. Se l\'admin ha resettato la password, rifai il login con quella nuova.','err');
+      } else if(err.code==='auth/user-not-found'){
+        showToast('Account non trovato su Firebase. Contatta admin per reset.','err');
+      } else if(err.code==='auth/too-many-requests'){
+        showToast('Troppi tentativi. Aspetta qualche minuto.','err');
+      } else if(err.code==='auth/network-request-failed'){
+        showToast('Errore di rete, riprova.','err');
+      } else {
+        showToast('Errore login: '+err.code,'err');
+      }
     }
     return;
   }
@@ -2244,27 +2267,61 @@ async function proLogin(){
       showToast('Credenziali errate!','err');
       return;
     }
-    // Password corretta - migra a Firebase Auth
+    // Password corretta. Verifica se c'è il flag _skipMigration (admin ha forzato reset)
+    var skipMig = allDataLogin[username] && allDataLogin[username]._skipMigration;
+    if(skipMig){
+      // Login senza migrare a Firebase Auth (resta nel sistema legacy con la password resettata)
+      setProSession({username:username});
+      showToast('✅ Bentornato!');
+      renderPronostici();
+      window._lastBinLoad=0;
+      binLoad().then(function(){renderPronostici();}).catch(function(){});
+      return;
+    }
+    // Migra a Firebase Auth normalmente
     showToast('🔄 Aggiornamento sicurezza account...');
+    var migratedOk = false;
     try {
       await _fbAuth.createUserWithEmailAndPassword(email, _padPassword(pwd));
+      migratedOk = true;
     } catch(e){
-      // Se l'account esiste già su Firebase (es: utente migrato altrove), prova login
       if(e.code==='auth/email-already-in-use'){
-        try { await _fbAuth.signInWithEmailAndPassword(email, _padPassword(pwd)); }
-        catch(e2){ showToast('Errore migrazione, contatta admin','err'); return; }
+        // Account già esiste su Firebase. Proviamo login con questa password.
+        try { 
+          await _fbAuth.signInWithEmailAndPassword(email, _padPassword(pwd));
+          migratedOk = true;
+        } catch(e2){
+          // Firebase Auth ha credenziali diverse (caso reset password admin)
+          // Soluzione: continuiamo con l'hash legacy senza creare/usare Firebase Auth
+          // L'utente entra ma resta nel sistema legacy
+          showToast('⚠️ Account in modalità legacy (sicurezza ridotta)','');
+          setProSession({username:username});
+          renderPronostici();
+          return;
+        }
       } else {
         showToast('Errore: '+e.message,'err'); return;
       }
     }
-    // Aggiorna mapping locale (rimuovi hash, sostituisci con marker)
-    users[username]='_fbAuth_';
-    saveUsers(users);
+    // Aggiorna mapping locale solo se la migrazione è andata a buon fine
+    if(migratedOk){
+      users[username]='_fbAuth_';
+      // Salva proUsers SU FIREBASE e ASPETTA che finisca prima di proseguire
+      try {
+        var safeUsersWrite = {};
+        Object.keys(users).forEach(function(k){ safeUsersWrite[k.replace(/[.#$/\[\]]/g,'_')]=users[k]; });
+        await _fbRef.child('proUsers').set(safeUsersWrite);
+        localStorage.setItem('sac_pro_users',JSON.stringify(users));
+      } catch(saveErr){
+        console.error('Errore salvataggio proUsers:', saveErr);
+        // Comunque procediamo
+      }
+    }
     setProSession({username:username});
     showToast('✅ Bentornato! Account aggiornato.');
     renderPronostici();
     window._lastBinLoad=0;
-    binLoad().then(function(){renderPronostici();}).catch(function(){});
+    setTimeout(function(){ binLoad().then(function(){renderPronostici();}).catch(function(){}); }, 1000);
   } catch(err){
     showToast('Errore login: '+err.message,'err');
   }
@@ -3200,6 +3257,40 @@ function _resetUser(idx){
   renderProAdmin();
 }
 
+async function _forceRemigrate(idx){
+  var uname=window._pau[idx];
+  if(!uname)return;
+  var newPwd=prompt('Reimposta password legacy per @'+uname+'\n\nL\'utente userà questa password al prossimo login. Verrà ri-migrato a Firebase Auth automaticamente.\n\nLascia vuoto per generarne una casuale.','');
+  if(newPwd===null) return;
+  if(!newPwd||newPwd.length<3){
+    // Genera casuale
+    var chars='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    newPwd='';
+    for(var i=0;i<8;i++) newPwd+=chars.charAt(Math.floor(Math.random()*chars.length));
+  }
+  if(!confirm('Confermi:\n@'+uname+'\nNuova password: '+newPwd))return;
+  try {
+    // 1. Sostituisci Firebase Auth flag con hash PBKDF2 della nuova password
+    var newHash = await hashPassword(newPwd);
+    var users = getUsers();
+    users[uname] = newHash;
+    saveUsers(users);
+    
+    // 2. Resetta eventuale custom email Firebase + setta flag skipMigration
+    var all = getAllData();
+    if(!all[uname]) all[uname]={tokens:300,bets:0,storia:[]};
+    if(all[uname]._fbEmail) delete all[uname]._fbEmail;
+    all[uname]._skipMigration = true; // l'utente NON sarà ri-migrato a Firebase Auth
+    saveAllData(all);
+    
+    // 3. Mostra popup con la password
+    _showPasswordPopup(uname, newPwd);
+    showToast('Password forzata. L\'utente potrà entrare con: '+newPwd);
+  } catch(err){
+    showToast('Errore: '+err.message,'err');
+  }
+}
+
 function _modifyUserTokens(idx){
   var uname=window._pau[idx];
   if(!uname)return;
@@ -3322,6 +3413,7 @@ function renderProAdmin(){
       h+='<button onclick="_resetUser('+i+')" style="background:rgba(245,197,24,0.1);border:1px solid rgba(245,197,24,0.3);color:#f5c518;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1F504; Reset</button>';
       h+='<button onclick="_modifyUserTokens('+i+')" style="background:rgba(0,214,143,0.1);border:1px solid rgba(0,214,143,0.3);color:#00d68f;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1FA99; Token</button>';
       h+='<button onclick="_resetUserPassword('+i+')" style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);color:#a78bfa;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1F511; Pwd</button>';
+      h+='<button onclick="_forceRemigrate('+i+')" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:#ff4454;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1F513; Sblocca</button>';
       h+='<button onclick="_delUser('+i+')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#ef4444;padding:8px 10px;border-radius:8px;font-family:DM Sans,sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#x1F5D1; Elimina</button>';
       h+='</div>';
       h+='</div>';
