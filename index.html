@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ── PROTEZIONE SITO ──
 (function(){
@@ -2706,25 +2707,107 @@ function getShuffledMatches(mList,isF){
 }
 
 
-function condividiSchedina(bet){
-  var text='🎰 LA MIA SCHEDINA SAC 2026\n\n';
-  bet.schedina.forEach(function(b){
-    text+='⚽ '+b.teamA+' vs '+b.teamB+'\n';
-    text+='   → '+b.label+' @ '+b.odd+'\n\n';
+async function condividiSchedina(bet){
+  var statusText='IN CORSO', statusColor='#f5c518', statusBg='rgba(245,197,24,0.15)', statusIcon='⏳';
+  if(bet.status==='win'){statusText='VINTA! +'+bet.vincita+' 🪙';statusColor='#00d68f';statusBg='rgba(0,214,143,0.15)';statusIcon='✅';}
+  else if(bet.status==='lose'){statusText='PERSA';statusColor='#ff4454';statusBg='rgba(255,68,84,0.15)';statusIcon='❌';}
+  
+  var d=getMyData();
+  var username=(d&&d.nome&&d.cognome)?(d.nome+' '+d.cognome):(getProSession()||{}).username||'Player';
+  
+  // Crea elemento offscreen per renderizzare l'immagine
+  var card=document.createElement('div');
+  card.style.cssText='position:fixed;left:-9999px;top:0;width:540px;background:linear-gradient(160deg,#0a0a0a 0%,#1a1410 50%,#0a0a0a 100%);padding:32px 28px;font-family:DM Sans,Inter,sans-serif;color:#fff;border:2px solid #f5c518;border-radius:20px;box-shadow:0 0 60px rgba(245,197,24,0.3) inset';
+  
+  var html='';
+  // Header
+  html+='<div style="text-align:center;margin-bottom:20px;border-bottom:1px dashed rgba(245,197,24,0.3);padding-bottom:18px">';
+  html+='<div style="font-family:Anton,sans-serif;font-size:14px;letter-spacing:8px;color:#f5c518;opacity:0.85">SERIE A CARO</div>';
+  html+='<div style="font-family:Anton,sans-serif;font-size:32px;letter-spacing:3px;background:linear-gradient(90deg,#f5c518,#fff,#f5c518);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-top:4px">SCHEDINA</div>';
+  html+='<div style="font-size:13px;color:#aaa;margin-top:6px">di <strong style="color:#fff">'+_esc(username)+'</strong></div>';
+  html+='</div>';
+  
+  // Multipla/Singola badge
+  var betType=bet.schedina.length===1?'SINGOLA':'MULTIPLA x'+bet.schedina.length;
+  html+='<div style="display:flex;justify-content:center;margin-bottom:14px"><span style="background:rgba(245,197,24,0.15);border:1px solid #f5c518;color:#f5c518;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1.5px">'+betType+'</span></div>';
+  
+  // Selezioni
+  bet.schedina.forEach(function(b,i){
+    var leagueIcon=b.isF?'♀':'♂';
+    var leagueColor=b.isF?'#ff6ec7':'#3d8ef0';
+    html+='<div style="background:rgba(255,255,255,0.04);border-left:3px solid '+leagueColor+';border-radius:8px;padding:12px 14px;margin-bottom:10px">';
+    html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">';
+    html+='<span style="color:'+leagueColor+';font-size:14px;font-weight:700">'+leagueIcon+'</span>';
+    html+='<span style="font-size:14px;font-weight:700;color:#fff">'+_esc(b.teamA)+' <span style="color:#888;font-weight:400">vs</span> '+_esc(b.teamB)+'</span>';
+    html+='</div>';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center">';
+    html+='<span style="color:#f5c518;font-weight:600;font-size:13px">→ '+_esc(b.label)+'</span>';
+    html+='<span style="font-family:Anton,sans-serif;font-size:18px;color:#f5c518">'+_esc(b.odd)+'</span>';
+    html+='</div>';
+    html+='</div>';
   });
-  text+='📊 Quota: '+bet.qt+'x\n';
-  text+='💰 Puntata: '+bet.puntata+' 🪙\n';
-  text+='🏆 Vincita potenziale: '+bet.vincita+' 🪙';
-  if(bet.status==='win') text+='\n\n✅ VINTA! +'+bet.vincita+' token 🎉';
-  else if(bet.status==='lose') text+='\n\n❌ Persa';
-  else text+='\n\n⏳ In attesa di risultati';
-  text+='\n\n🔗 serieacaro.github.io';
-  if(navigator.share){
-    navigator.share({title:'Schedina SAC 2026',text:text}).catch(function(){});
-  } else {
-    navigator.clipboard.writeText(text).then(function(){
-      showToast('📋 Copiato!');
-    }).catch(function(){showToast('Errore','err');});
+  
+  // Summary numerica
+  html+='<div style="background:linear-gradient(135deg,rgba(245,197,24,0.08),rgba(245,197,24,0.02));border:1px solid rgba(245,197,24,0.2);border-radius:12px;padding:14px;margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center">';
+  html+='<div><div style="font-size:10px;color:#888;letter-spacing:1px;margin-bottom:4px">PUNTATA</div><div style="font-family:Anton,sans-serif;font-size:20px;color:#fff">'+bet.puntata+'🪙</div></div>';
+  html+='<div style="border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1)"><div style="font-size:10px;color:#888;letter-spacing:1px;margin-bottom:4px">QUOTA</div><div style="font-family:Anton,sans-serif;font-size:20px;color:#f5c518">'+bet.qt+'x</div></div>';
+  html+='<div><div style="font-size:10px;color:#888;letter-spacing:1px;margin-bottom:4px">VINCITA</div><div style="font-family:Anton,sans-serif;font-size:20px;color:#00d68f">'+bet.vincita+'🪙</div></div>';
+  html+='</div>';
+  
+  // Status finale
+  html+='<div style="background:'+statusBg+';border:2px solid '+statusColor+';border-radius:12px;padding:14px;margin-top:14px;text-align:center">';
+  html+='<div style="font-size:32px;margin-bottom:4px">'+statusIcon+'</div>';
+  html+='<div style="font-family:Anton,sans-serif;font-size:22px;letter-spacing:2px;color:'+statusColor+'">'+statusText+'</div>';
+  html+='</div>';
+  
+  // Footer
+  html+='<div style="text-align:center;margin-top:20px;padding-top:18px;border-top:1px dashed rgba(245,197,24,0.3)">';
+  html+='<div style="font-size:11px;color:#888">🎯 Inizia a scommettere anche tu</div>';
+  html+='<div style="font-family:Anton,sans-serif;font-size:18px;letter-spacing:2px;color:#f5c518;margin-top:4px">SERIEACARO.IT</div>';
+  html+='</div>';
+  
+  card.innerHTML=html;
+  document.body.appendChild(card);
+  
+  showToast('🎨 Genero immagine...');
+  
+  try {
+    var canvas=await html2canvas(card,{
+      backgroundColor:null,
+      scale:2,
+      logging:false,
+      useCORS:true
+    });
+    document.body.removeChild(card);
+    
+    // Converti in blob
+    var dataUrl=canvas.toDataURL('image/png');
+    
+    // Prova share nativo con immagine
+    if(navigator.canShare){
+      try {
+        var blob=await(await fetch(dataUrl)).blob();
+        var file=new File([blob],'schedina-sac.png',{type:'image/png'});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({
+            files:[file],
+            text:'🎯 La mia schedina su Serie A Caro!\nInizia a scommettere anche tu: https://serieacaro.it'
+          });
+          return;
+        }
+      } catch(e){}
+    }
+    
+    // Fallback: scarica l'immagine
+    var a=document.createElement('a');
+    a.href=dataUrl;
+    a.download='schedina-sac-'+(bet.id||Date.now())+'.png';
+    a.click();
+    showToast('💾 Immagine salvata! Condividila dove vuoi.');
+  } catch(e){
+    if(card.parentNode) document.body.removeChild(card);
+    console.error('Errore generazione immagine:',e);
+    showToast('Errore generazione immagine','err');
   }
 }
 function piazzaScommessa(){
@@ -3711,46 +3794,180 @@ function renderPronostici(){
   // STORIA
   if(proActiveTab==='storia'){
     var _st=d&&d.storia?d.storia:[];
-    window._storia=_st; // salva per condivisione
+    window._storia=_st;
     var _wins=_st.filter(function(s){return s.status==='win'}).length;
     var _losses=_st.filter(function(s){return s.status==='lose'}).length;
     var _pending=_st.filter(function(s){return s.status==='pending'}).length;
     var _totWon=_st.filter(function(s){return s.status==='win'}).reduce(function(a,s){return a+s.vincita},0);
     var _totLost=_st.filter(function(s){return s.status==='lose'}).reduce(function(a,s){return a+s.puntata},0);
     var _profit=_totWon-_totLost;
-    h+='<div class="card"><div class="card-head"><div class="group-badge">📜</div><div class="card-title">Le mie scommesse</div></div>';
-    if(_st.length){
-      h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)">';
-      h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--green)">'+_wins+'</div><div style="font-size:10px;color:var(--muted)">Vinte</div></div>';
-      h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--red)">'+_losses+'</div><div style="font-size:10px;color:var(--muted)">Perse</div></div>';
-      h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--gold)">'+_pending+'</div><div style="font-size:10px;color:var(--muted)">In corso</div></div>';
+    var _filter=window._storiaFilter||'tutte';
+    
+    if(!_st.length){
+      // Empty state
+      h+='<div style="text-align:center;padding:60px 20px"><div style="font-size:64px;margin-bottom:14px;opacity:0.4">📭</div>';
+      h+='<div style="font-family:Anton,sans-serif;font-size:20px;letter-spacing:2px;color:var(--text);margin-bottom:8px">NESSUNA SCOMMESSA</div>';
+      h+='<div style="font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.5">Vai sulla sezione Scommesse<br>e inizia a vincere token!</div>';
+      h+='<button onclick="proActiveTab=\'scommesse\';renderPronostici()" style="background:var(--gold);color:#000;border:none;padding:12px 28px;border-radius:24px;font-family:Anton,sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;font-weight:700">🎯 GIOCA ORA</button>';
       h+='</div>';
-      h+='<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">';
-      h+='<span style="font-size:11px;color:var(--muted)">Profitto netto</span>';
-      h+='<span style="font-size:14px;font-weight:700;color:'+(_profit>=0?'var(--green)':'var(--red)')+'">'+(_profit>=0?'+':'')+_profit+' 🪙</span>';
+    } else {
+      // ── HERO STATS CARD ──
+      h+='<div style="background:linear-gradient(135deg,rgba(245,197,24,0.08),rgba(245,197,24,0.02));border:1px solid rgba(245,197,24,0.3);border-radius:16px;padding:16px;margin-bottom:14px">';
+      // Profit badge grande
+      var profitColor=_profit>=0?'#00d68f':'#ff4454';
+      var profitBg=_profit>=0?'rgba(0,214,143,0.1)':'rgba(255,68,84,0.1)';
+      h+='<div style="text-align:center;margin-bottom:14px;padding-bottom:14px;border-bottom:1px dashed rgba(255,255,255,0.08)">';
+      h+='<div style="font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:700;margin-bottom:4px">PROFITTO NETTO</div>';
+      h+='<div style="font-family:Anton,sans-serif;font-size:42px;letter-spacing:1px;color:'+profitColor+';line-height:1">'+(_profit>=0?'+':'')+_profit+' 🪙</div>';
+      h+='<div style="font-size:11px;color:var(--muted);margin-top:6px">'+_st.length+' scommess'+(_st.length===1?'a':'e')+' totali</div>';
       h+='</div>';
-    }
-    if(!_st.length) h+='<div style="padding:20px;text-align:center;color:var(--muted)">Nessuna scommessa.</div>';
-    for(var _xi=0;_xi<_st.length;_xi++){
-      var _s=_st[_xi];
-      var _date=new Date(_s.ts).toLocaleDateString('it-IT',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-      var _bdg=_s.status==='win'?'<span class="bw">✅ +'+_s.vincita+'🪙</span>':_s.status==='lose'?'<span class="bl">❌ -'+_s.puntata+'🪙</span>':'<span class="bp">⏳ '+_s.qt+'x</span>';
-      var _exp=expandedStoria[_s.id];
-      h+='<div class="pro-st-row" onclick="expandedStoria['+_s.id+']=!expandedStoria['+_s.id+'];renderPronostici()">';
-      h+='<div style="flex:1"><div style="font-weight:600;font-size:12px">'+_s.schedina.map(function(x){return x.label}).join(' · ')+'</div><div style="color:var(--muted);font-size:10px">'+_date+' · 🪙'+_s.puntata+'</div></div>';
-      h+=_bdg;
-      h+='<button onclick="event.stopPropagation();window._shareBet('+_xi+')" style="background:rgba(61,142,240,0.1);border:1px solid rgba(61,142,240,0.25);color:var(--blue);padding:6px 8px;border-radius:8px;font-size:12px;cursor:pointer;margin-left:6px;flex-shrink:0">📤</button>';
+      
+      // Stats clickable
+      h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+      h+='<div onclick="window._storiaFilter=\'vinte\';renderPronostici()" style="background:'+(_filter==='vinte'?'rgba(0,214,143,0.15)':'rgba(255,255,255,0.03)')+';border:1px solid '+(_filter==='vinte'?'#00d68f':'var(--border)')+';border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s">';
+      h+='<div style="font-size:22px;margin-bottom:2px">✅</div>';
+      h+='<div style="font-family:Anton,sans-serif;font-size:22px;color:#00d68f;line-height:1">'+_wins+'</div>';
+      h+='<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px">VINTE</div>';
       h+='</div>';
-      if(_exp){
-        h+='<div class="pro-st-detail open">';
-        for(var _di=0;_di<_s.schedina.length;_di++){
-          var _sd=_s.schedina[_di];
-          h+='<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)"><div><div style="font-weight:600">'+_esc(_sd.teamA)+' vs '+_esc(_sd.teamB)+'</div><div style="color:var(--gold)">'+_esc(_sd.label)+'</div></div><div style="font-family:Anton,sans-serif;font-size:14px;color:var(--gold)">'+_esc(_sd.odd)+'</div></div>';
+      h+='<div onclick="window._storiaFilter=\'perse\';renderPronostici()" style="background:'+(_filter==='perse'?'rgba(255,68,84,0.15)':'rgba(255,255,255,0.03)')+';border:1px solid '+(_filter==='perse'?'#ff4454':'var(--border)')+';border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s">';
+      h+='<div style="font-size:22px;margin-bottom:2px">❌</div>';
+      h+='<div style="font-family:Anton,sans-serif;font-size:22px;color:#ff4454;line-height:1">'+_losses+'</div>';
+      h+='<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px">PERSE</div>';
+      h+='</div>';
+      h+='<div onclick="window._storiaFilter=\'pending\';renderPronostici()" style="background:'+(_filter==='pending'?'rgba(245,197,24,0.15)':'rgba(255,255,255,0.03)')+';border:1px solid '+(_filter==='pending'?'#f5c518':'var(--border)')+';border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s">';
+      h+='<div style="font-size:22px;margin-bottom:2px">⏳</div>';
+      h+='<div style="font-family:Anton,sans-serif;font-size:22px;color:#f5c518;line-height:1">'+_pending+'</div>';
+      h+='<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px">IN CORSO</div>';
+      h+='</div>';
+      h+='</div>';
+      
+      // Performance trail (ultime 10)
+      var _last10=_st.slice(0,10).reverse();
+      if(_last10.length>=2){
+        h+='<div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(255,255,255,0.08)">';
+        h+='<div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;font-weight:700;margin-bottom:8px;text-align:center">ULTIME '+_last10.length+' SCOMMESSE</div>';
+        h+='<div style="display:flex;gap:5px;justify-content:center;align-items:center">';
+        _last10.forEach(function(s){
+          var c=s.status==='win'?'#00d68f':s.status==='lose'?'#ff4454':'#f5c518';
+          h+='<div style="width:18px;height:18px;border-radius:50%;background:'+c+';box-shadow:0 0 8px '+c+'66"></div>';
+        });
+        h+='</div></div>';
+      }
+      h+='</div>';
+      
+      // ── FILTRO header ──
+      var _filterLabel='Tutte le scommesse';
+      if(_filter==='vinte') _filterLabel='Solo vinte';
+      else if(_filter==='perse') _filterLabel='Solo perse';
+      else if(_filter==='pending') _filterLabel='Solo in corso';
+      
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 4px">';
+      h+='<div style="font-family:Anton,sans-serif;font-size:14px;letter-spacing:2px;color:var(--gold)">📜 '+_filterLabel.toUpperCase()+'</div>';
+      if(_filter!=='tutte') h+='<button onclick="window._storiaFilter=\'tutte\';renderPronostici()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer">✕ Pulisci</button>';
+      h+='</div>';
+      
+      // ── LISTA SCOMMESSE ──
+      var _filtered=_st;
+      if(_filter==='vinte') _filtered=_st.filter(function(s){return s.status==='win'});
+      else if(_filter==='perse') _filtered=_st.filter(function(s){return s.status==='lose'});
+      else if(_filter==='pending') _filtered=_st.filter(function(s){return s.status==='pending'});
+      
+      if(_filtered.length===0){
+        h+='<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">Nessuna scommessa in questa categoria</div>';
+      }
+      
+      for(var _xi=0;_xi<_filtered.length;_xi++){
+        var _s=_filtered[_xi];
+        var _origIdx=_st.indexOf(_s);
+        var _date=new Date(_s.ts).toLocaleDateString('it-IT',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+        var _isWin=_s.status==='win',_isLose=_s.status==='lose';
+        var _accent=_isWin?'#00d68f':_isLose?'#ff4454':'#f5c518';
+        var _accentBg=_isWin?'rgba(0,214,143,0.08)':_isLose?'rgba(255,68,84,0.08)':'rgba(245,197,24,0.08)';
+        var _exp=expandedStoria[_s.id];
+        var _multiTag=_s.schedina.length===1?'SINGOLA':'MULTIPLA x'+_s.schedina.length;
+        var _statusIcon=_isWin?'✅':_isLose?'❌':'⏳';
+        var _statusText=_isWin?('+'+_s.vincita+'🪙'):_isLose?('-'+_s.puntata+'🪙'):(_s.qt+'x');
+        
+        // Progresso per pending
+        var _settledCount=0;
+        if(_s.status==='pending'){
+          _s.schedina.forEach(function(b){
+            var isF2=String(b.matchId).indexOf('f')===0;
+            var realId=isF2?parseInt(String(b.matchId).replace('f','')):parseInt(b.matchId);
+            var ml=isF2?matchesF:matches;
+            var m=ml.find(function(x){return x.id===realId});
+            if(m&&m.played) _settledCount++;
+          });
         }
-        h+='<div style="margin-top:6px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>Puntata: 🪙'+_s.puntata+'</span><span>Quota: '+_s.qt+'x</span><span>Vincita: 🪙'+_s.vincita+'</span></div></div>';
+        
+        h+='<div style="background:var(--s2);border:1px solid var(--border);border-left:4px solid '+_accent+';border-radius:12px;margin-bottom:10px;overflow:hidden;transition:all .2s">';
+        // Header card
+        h+='<div onclick="expandedStoria['+_s.id+']=!expandedStoria['+_s.id+'];renderPronostici()" style="padding:12px 14px;cursor:pointer">';
+        h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+        h+='<span style="background:'+_accentBg+';color:'+_accent+';padding:3px 10px;border-radius:14px;font-size:9px;font-weight:700;letter-spacing:1px;border:1px solid '+_accent+'40">'+_multiTag+'</span>';
+        h+='<span style="font-size:10px;color:var(--muted);flex:1">'+_date+'</span>';
+        h+='<span style="font-family:Anton,sans-serif;font-size:14px;color:'+_accent+';display:flex;align-items:center;gap:4px">'+_statusIcon+' '+_statusText+'</span>';
+        h+='</div>';
+        // Selezioni summary
+        h+='<div style="font-size:12px;color:var(--text);line-height:1.5;font-weight:500">';
+        _s.schedina.slice(0,2).forEach(function(b,bi){
+          h+=(bi>0?' · ':'')+'<span style="color:var(--gold)">'+_esc(b.label)+'</span>';
+        });
+        if(_s.schedina.length>2) h+=' <span style="color:var(--muted)">+'+(_s.schedina.length-2)+' altr'+(_s.schedina.length-2===1?'a':'e')+'</span>';
+        h+='</div>';
+        // Stats row
+        h+='<div style="display:flex;gap:14px;margin-top:8px;font-size:10px;color:var(--muted)">';
+        h+='<span>💰 '+_s.puntata+'🪙</span>';
+        h+='<span>📊 '+_s.qt+'x</span>';
+        h+='<span>🏆 '+_s.vincita+'🪙</span>';
+        if(_s.status==='pending') h+='<span style="margin-left:auto;color:var(--gold)">⏳ '+_settledCount+'/'+_s.schedina.length+' giocate</span>';
+        h+='</div>';
+        // Progress bar per pending
+        if(_s.status==='pending' && _s.schedina.length>1){
+          var _progressPct=Math.round((_settledCount/_s.schedina.length)*100);
+          h+='<div style="height:3px;background:rgba(255,255,255,0.05);border-radius:2px;margin-top:8px;overflow:hidden"><div style="height:100%;width:'+_progressPct+'%;background:linear-gradient(90deg,#f5c518,#e8a000);transition:width .3s"></div></div>';
+        }
+        h+='</div>';
+        // Expanded detail
+        if(_exp){
+          h+='<div style="padding:0 14px 14px;background:rgba(0,0,0,0.2)">';
+          h+='<div style="padding:10px 0 6px;border-top:1px dashed rgba(255,255,255,0.06);font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:700">SELEZIONI</div>';
+          _s.schedina.forEach(function(b){
+            var isF2=String(b.matchId).indexOf('f')===0;
+            var realId=isF2?parseInt(String(b.matchId).replace('f','')):parseInt(b.matchId);
+            var ml=isF2?matchesF:matches;
+            var m=ml.find(function(x){return x.id===realId});
+            var selIcon='⏳',selColor='#888';
+            if(m&&m.played){
+              // Determina se questa selezione è win o lose
+              var res=checkSel(b);
+              if(res==='win'){selIcon='✅';selColor='#00d68f';}
+              else if(res==='lose'){selIcon='❌';selColor='#ff4454';}
+            }
+            h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">';
+            h+='<div style="flex:1;min-width:0">';
+            h+='<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">'+_esc(b.teamA)+' <span style="color:#888">vs</span> '+_esc(b.teamB)+'</div>';
+            h+='<div style="font-size:11px;color:var(--gold)">→ '+_esc(b.label)+'</div>';
+            if(m&&m.played) h+='<div style="font-size:10px;color:var(--muted);margin-top:2px">Risultato: '+(m.g1|0)+'-'+(m.g2|0)+'</div>';
+            h+='</div>';
+            h+='<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
+            h+='<div style="font-family:Anton,sans-serif;font-size:16px;color:'+selColor+'">'+selIcon+' '+_esc(b.odd)+'</div>';
+            h+='</div>';
+            h+='</div>';
+          });
+          // Footer dettaglio
+          h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;text-align:center">';
+          h+='<div><div style="font-size:9px;color:var(--muted);letter-spacing:1px">PUNTATA</div><div style="font-family:Anton,sans-serif;font-size:15px;color:var(--text);margin-top:2px">'+_s.puntata+'🪙</div></div>';
+          h+='<div style="border-left:1px solid rgba(255,255,255,0.05);border-right:1px solid rgba(255,255,255,0.05)"><div style="font-size:9px;color:var(--muted);letter-spacing:1px">QUOTA</div><div style="font-family:Anton,sans-serif;font-size:15px;color:var(--gold);margin-top:2px">'+_s.qt+'x</div></div>';
+          h+='<div><div style="font-size:9px;color:var(--muted);letter-spacing:1px">VINCITA</div><div style="font-family:Anton,sans-serif;font-size:15px;color:#00d68f;margin-top:2px">'+_s.vincita+'🪙</div></div>';
+          h+='</div>';
+          // Share button
+          h+='<button onclick="event.stopPropagation();window._shareBet('+_origIdx+')" style="width:100%;margin-top:10px;background:linear-gradient(135deg,rgba(61,142,240,0.15),rgba(61,142,240,0.05));border:1px solid rgba(61,142,240,0.4);color:var(--blue);padding:10px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">📤 Condividi schedina</button>';
+          h+='</div>';
+        }
+        h+='</div>';
       }
     }
-    h+='</div>';
   }
 
   // ACCOUNT - solo popup dalla topbar, nessun tab dedicato
