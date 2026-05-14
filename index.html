@@ -418,12 +418,14 @@ select option{background:var(--s2)}
 <nav class="nav">
   <button class="nav-btn active" id="navClassifica" onclick="changePage('classifica',this)">Classifica</button>
   <button class="nav-btn" id="navRisultati" onclick="changePage('risultati',this)">Partite</button>
+  <button class="nav-btn" id="navTabellone" onclick="changePage('tabellone',this)">🏆 Tabellone</button>
   <button class="nav-btn" id="navOggi" onclick="changePage('oggi',this)">Oggi</button>
   <button class="nav-btn" id="navMarcatori" onclick="changePage('marcatori',this)">Marcatori</button>
   <button class="nav-btn" id="navPronostici" onclick="changePage('pronostici',this)">BETS</button>
 </nav>
 <div id="classifica" class="container active"><div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Caricamento...</div></div></div>
 <div id="risultati" class="container"></div>
+<div id="tabellone" class="container"></div>
 <div id="marcatori" class="container"></div>
 <div id="oggi" class="container"></div>
 <div id="notizie" class="container" style="display:none"></div>
@@ -1014,6 +1016,7 @@ function changePage(p, btn) {
     clearInterval(_wheelBtnTimerInterval); _wheelBtnTimerInterval=null;
   }
   if (p==='oggi') renderOggi();
+  if (p==='tabellone') renderTabellone();
   if (p==='pronostici') {
     renderPronostici();
     var now=Date.now();
@@ -1030,6 +1033,13 @@ function switchLeague(l) {
   activeLeague=l
   document.getElementById('btnM').classList.toggle('active',l==='M')
   document.getElementById('btnF').classList.toggle('active',l==='F')
+  // Se l'utente era già sul tabellone, mantieni la tab ma aggiorna il contenuto
+  var tabActive = document.getElementById('tabellone') && document.getElementById('tabellone').classList.contains('active');
+  if(tabActive){
+    renderTable(); renderMatches(); renderScorers();
+    renderTabellone();
+    return;
+  }
   changePage('classifica',document.getElementById('navClassifica'))
   renderTable(); renderMatches(); renderScorers()
 }
@@ -1355,6 +1365,244 @@ function renderOggi(){
   html+='</div>';
   el.innerHTML=html;
 }
+
+// ════════════════════════════════════════
+// TABELLONE FINALE (4 squadre M + 4 F)
+// ════════════════════════════════════════
+
+// Dati tabellone: stored in Firebase under 'bracket'
+// Struttura: { M: { qf1, qf2, sf, ... }, F: { ... } }
+function _getBracketData(){
+  return window._bracketData || {M:{},F:{}};
+}
+
+// Helper per renderizzare una singola "casella" del bracket
+function _bracketMatch(matchData, league, matchKey, side){
+  var d = matchData || {};
+  var a = d.a || '?';
+  var b = d.b || '?';
+  var ga = (typeof d.ga==='number') ? d.ga : null;
+  var gb = (typeof d.gb==='number') ? d.gb : null;
+  var played = (ga!==null && gb!==null);
+  var winnerA = played && ga>gb;
+  var winnerB = played && gb>ga;
+  var leagueColor = league==='M' ? '#3d8ef0' : '#ff6ec7';
+  var accentBg = league==='M' ? 'rgba(61,142,240,0.06)' : 'rgba(255,110,199,0.06)';
+  var pillBg = league==='M' ? 'rgba(61,142,240,0.15)' : 'rgba(255,110,199,0.15)';
+  
+  var clickAttr = admin ? (' onclick="_editBracketMatch(\''+league+'\',\''+matchKey+'\')"') : '';
+  var cursor = admin ? ';cursor:pointer' : '';
+  
+  var h = '<div'+clickAttr+' style="background:linear-gradient(180deg,var(--s2),#141414);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin:6px 0;transition:all .15s'+cursor+';position:relative;min-height:62px">';
+  // Team A
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:11px;'+(winnerA?'color:'+leagueColor+';font-weight:700':winnerB?'color:var(--muted);text-decoration:line-through;opacity:0.55':'')+'">';
+  h += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px">'+_esc(a)+'</span>';
+  h += '<span style="font-family:Anton,sans-serif;font-size:14px;letter-spacing:1px">'+(ga===null?'—':ga)+'</span>';
+  h += '</div>';
+  h += '<div style="height:1px;background:var(--border);margin:2px 0"></div>';
+  // Team B
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:11px;'+(winnerB?'color:'+leagueColor+';font-weight:700':winnerA?'color:var(--muted);text-decoration:line-through;opacity:0.55':'')+'">';
+  h += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px">'+_esc(b)+'</span>';
+  h += '<span style="font-family:Anton,sans-serif;font-size:14px;letter-spacing:1px">'+(gb===null?'—':gb)+'</span>';
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
+function renderTabellone(){
+  var el = document.getElementById('tabellone');
+  if(!el) return;
+  
+  var data = _getBracketData();
+  var isF = (activeLeague==='F');
+  var league = isF ? 'F' : 'M';
+  var d = isF ? (data.F||{}) : (data.M||{});
+  var leagueColor = isF ? '#ff6ec7' : '#3d8ef0';
+  var leagueBg = isF ? 'rgba(255,110,199,0.08)' : 'rgba(61,142,240,0.08)';
+  var leagueBorder = isF ? 'rgba(255,110,199,0.25)' : 'rgba(61,142,240,0.25)';
+  var leagueIcon = isF ? '♀' : '♂';
+  var leagueName = isF ? 'FEMMINILE' : 'MASCHILE';
+  
+  var h = '<div style="padding:14px">';
+  
+  // Header
+  h += '<div style="text-align:center;margin-bottom:18px">';
+  h += '<div style="font-family:Anton,sans-serif;font-size:12px;letter-spacing:6px;color:var(--muted)">FASE FINALE</div>';
+  h += '<div style="font-family:Anton,sans-serif;font-size:30px;letter-spacing:3px;background:linear-gradient(90deg,var(--gold),#fff,var(--gold));background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 4s linear infinite;margin-top:2px">🏆 TABELLONE</div>';
+  h += '<div style="display:inline-block;margin-top:8px;padding:4px 14px;background:'+leagueBg+';border:1px solid '+leagueBorder+';border-radius:14px;font-family:Anton,sans-serif;font-size:12px;letter-spacing:2px;color:'+leagueColor+'">'+leagueIcon+' '+leagueName+'</div>';
+  h += '</div>';
+  
+  // Calcola il campione
+  var winnerFinal = d.final && typeof d.final.ga==='number' && typeof d.final.gb==='number';
+  var champion = '?';
+  if(winnerFinal){
+    champion = d.final.ga > d.final.gb ? d.final.a : d.final.gb > d.final.ga ? d.final.b : '?';
+  }
+  
+  // ── TROFEO + CAMPIONE in alto ──
+  h += '<div style="background:linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.02));border:1px solid rgba(245,197,24,0.3);border-radius:16px;padding:18px 14px;margin-bottom:18px;text-align:center">';
+  h += '<div style="width:78px;height:78px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ffe97a,#f5c518 60%,#a17800);box-shadow:0 8px 30px rgba(245,197,24,0.4),inset 0 -3px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:42px;margin:0 auto 10px">🏆</div>';
+  h += '<div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">CAMPIONE '+leagueName+'</div>';
+  if(champion!=='?'){
+    h += '<div style="font-family:Anton,sans-serif;font-size:22px;letter-spacing:2px;color:'+leagueColor+'">'+_esc(champion)+' 🎉</div>';
+  } else {
+    h += '<div style="font-family:Anton,sans-serif;font-size:16px;letter-spacing:2px;color:var(--muted)">DA DECRETARE</div>';
+  }
+  h += '</div>';
+  
+  // ── SEMIFINALI ──
+  h += '<div style="font-family:Anton,sans-serif;font-size:11px;letter-spacing:3px;color:'+leagueColor+';text-align:center;margin-bottom:10px;font-weight:700">SEMIFINALI</div>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">';
+  h += '<div>' + _bracketMatchBig(d.sf1, league, 'sf1') + '</div>';
+  h += '<div>' + _bracketMatchBig(d.sf2, league, 'sf2') + '</div>';
+  h += '</div>';
+  
+  // Connettore visivo (linee verso finale)
+  h += '<div style="display:flex;justify-content:center;margin:-8px 0 8px">';
+  h += '<div style="display:flex;align-items:center;gap:6px;font-size:18px;color:'+leagueColor+';opacity:0.6">';
+  h += '<span style="display:inline-block;width:30px;height:1px;background:'+leagueColor+'"></span>';
+  h += '<span>▼</span>';
+  h += '<span style="display:inline-block;width:30px;height:1px;background:'+leagueColor+'"></span>';
+  h += '</div></div>';
+  
+  // ── FINALE ──
+  h += '<div style="font-family:Anton,sans-serif;font-size:13px;letter-spacing:3px;color:var(--gold);text-align:center;margin-bottom:10px;font-weight:700">⭐ FINALE ⭐</div>';
+  h += '<div style="max-width:300px;margin:0 auto">';
+  h += _bracketMatchBig(d.final, league, 'final', true);
+  h += '</div>';
+  
+  // Admin: pulsante reset
+  if(admin){
+    h += '<div style="margin-top:24px;padding:12px;background:rgba(245,197,24,0.06);border:1px dashed rgba(245,197,24,0.3);border-radius:10px;text-align:center">';
+    h += '<div style="font-size:11px;color:var(--gold);margin-bottom:8px;font-weight:700">🔐 MODALITÀ ADMIN</div>';
+    h += '<div style="font-size:10px;color:var(--muted);margin-bottom:10px">Tocca una partita per modificarla</div>';
+    h += '<button onclick="_resetBracket()" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:var(--red);padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🗑️ Reset tabellone</button>';
+    h += '</div>';
+  }
+  
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+// Versione "big" della casella bracket (per layout single-column)
+function _bracketMatchBig(matchData, league, matchKey, isFinal){
+  var d = matchData || {};
+  var a = d.a || '?';
+  var b = d.b || '?';
+  var ga = (typeof d.ga==='number') ? d.ga : null;
+  var gb = (typeof d.gb==='number') ? d.gb : null;
+  var played = (ga!==null && gb!==null);
+  var winnerA = played && ga>gb;
+  var winnerB = played && gb>ga;
+  var leagueColor = league==='M' ? '#3d8ef0' : '#ff6ec7';
+  
+  var clickAttr = admin ? (' onclick="_editBracketMatch(\''+league+'\',\''+matchKey+'\')"') : '';
+  var cursor = admin ? ';cursor:pointer' : '';
+  var goldBorder = isFinal ? ';border:1px solid rgba(245,197,24,0.5)' : ';border:1px solid var(--border)';
+  var goldBg = isFinal ? ';background:linear-gradient(180deg,rgba(245,197,24,0.05),rgba(245,197,24,0.01))' : '';
+  
+  var h = '<div'+clickAttr+' style="background:linear-gradient(180deg,var(--s2),#141414)'+goldBg+';border-radius:12px;padding:10px 14px;transition:all .15s'+cursor+goldBorder+';min-height:78px;display:flex;flex-direction:column;justify-content:center">';
+  // Team A
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;'+(winnerA?'color:'+leagueColor+';font-weight:700':winnerB?'color:var(--muted);text-decoration:line-through;opacity:0.55':'')+'">';
+  h += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;padding-right:8px">'+_esc(a)+'</span>';
+  h += '<span style="font-family:Anton,sans-serif;font-size:18px;letter-spacing:1px;flex-shrink:0">'+(ga===null?'—':ga)+'</span>';
+  h += '</div>';
+  h += '<div style="height:1px;background:var(--border);margin:3px 0"></div>';
+  // Team B
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;'+(winnerB?'color:'+leagueColor+';font-weight:700':winnerA?'color:var(--muted);text-decoration:line-through;opacity:0.55':'')+'">';
+  h += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;padding-right:8px">'+_esc(b)+'</span>';
+  h += '<span style="font-family:Anton,sans-serif;font-size:18px;letter-spacing:1px;flex-shrink:0">'+(gb===null?'—':gb)+'</span>';
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
+// Apre popup per modificare una partita del bracket (solo admin)
+function _editBracketMatch(league, matchKey){
+  if(!admin) return;
+  var data = _getBracketData();
+  var match = (data[league] && data[league][matchKey]) || {};
+  var existing = document.getElementById('bracketEditPopup');
+  if(existing) existing.remove();
+  
+  var labelMap = {sf1:'Semifinale 1',sf2:'Semifinale 2',final:'Finale'};
+  var leagueLabel = league==='M' ? '♂ Maschile' : '♀ Femminile';
+  
+  var div = document.createElement('div');
+  div.id = 'bracketEditPopup';
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px';
+  div.innerHTML = '<div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:20px;max-width:380px;width:100%">'+
+    '<div style="text-align:center;margin-bottom:14px">'+
+    '<div style="font-size:13px;color:var(--muted)">'+leagueLabel+'</div>'+
+    '<div style="font-family:Anton,sans-serif;font-size:18px;letter-spacing:2px;color:var(--gold)">'+labelMap[matchKey]+'</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 60px;gap:8px;align-items:center;margin-bottom:8px">'+
+    '<input id="brkA" placeholder="Squadra 1" value="'+_esc(match.a||'')+'" style="background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:DM Sans,sans-serif;outline:none">'+
+    '<input id="brkGa" type="number" min="0" placeholder="Gol" value="'+(typeof match.ga==='number'?match.ga:'')+'" style="background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);padding:9px 8px;border-radius:8px;font-size:13px;font-family:Anton,sans-serif;outline:none;text-align:center">'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 60px;gap:8px;align-items:center;margin-bottom:14px">'+
+    '<input id="brkB" placeholder="Squadra 2" value="'+_esc(match.b||'')+'" style="background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:DM Sans,sans-serif;outline:none">'+
+    '<input id="brkGb" type="number" min="0" placeholder="Gol" value="'+(typeof match.gb==='number'?match.gb:'')+'" style="background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);padding:9px 8px;border-radius:8px;font-size:13px;font-family:Anton,sans-serif;outline:none;text-align:center">'+
+    '</div>'+
+    '<div style="display:flex;gap:8px">'+
+    '<button onclick="_saveBracketMatch(\''+league+'\',\''+matchKey+'\')" style="flex:1;padding:11px;background:var(--gold);color:#000;border:none;border-radius:10px;font-family:Anton,sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;font-weight:700">SALVA</button>'+
+    '<button onclick="document.getElementById(\'bracketEditPopup\').remove()" style="padding:11px 14px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;font-size:13px;cursor:pointer">Annulla</button>'+
+    '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
+async function _saveBracketMatch(league, matchKey){
+  var a = document.getElementById('brkA').value.trim();
+  var b = document.getElementById('brkB').value.trim();
+  var gaRaw = document.getElementById('brkGa').value;
+  var gbRaw = document.getElementById('brkGb').value;
+  var ga = gaRaw===''?null:parseInt(gaRaw);
+  var gb = gbRaw===''?null:parseInt(gbRaw);
+  
+  if(!window._bracketData) window._bracketData = {M:{},F:{}};
+  if(!window._bracketData[league]) window._bracketData[league] = {};
+  window._bracketData[league][matchKey] = {a:a, b:b, ga:ga, gb:gb};
+  
+  try {
+    setSyncStatus('loading','Salvataggio tabellone...');
+    await _fbRef.child('bracket').set(window._bracketData);
+    setSyncStatus('ok','Tabellone aggiornato ✓');
+    showToast('✅ Salvato');
+  } catch(e){
+    setSyncStatus('err','Errore salvataggio');
+    showToast('Errore: '+e.message,'err');
+  }
+  document.getElementById('bracketEditPopup').remove();
+  renderTabellone();
+}
+
+async function _resetBracket(){
+  if(!confirm('Resettare TUTTO il tabellone? Operazione irreversibile.')) return;
+  window._bracketData = {M:{},F:{}};
+  try {
+    await _fbRef.child('bracket').remove();
+    showToast('🗑️ Tabellone resettato');
+  } catch(e){
+    showToast('Errore: '+e.message,'err');
+  }
+  renderTabellone();
+}
+
+// Carica il tabellone da Firebase all'avvio
+function _loadBracket(){
+  _fbRef.child('bracket').once('value').then(function(snap){
+    window._bracketData = snap.val() || {M:{},F:{}};
+    try { if(document.getElementById('tabellone').classList.contains('active')) renderTabellone(); }catch(e){}
+  }).catch(function(){});
+}
+// Listener live
+try {
+  _fbRef.child('bracket').on('value', function(snap){
+    window._bracketData = snap.val() || {M:{},F:{}};
+    try { if(document.getElementById('tabellone').classList.contains('active')) renderTabellone(); }catch(e){}
+  });
+}catch(e){}
 
 function _toggleOggiFuture(){
   var wrap=document.getElementById('oggiFutureWrap');
