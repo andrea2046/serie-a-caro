@@ -4770,71 +4770,74 @@ function renderPronostici(){
         var _open=openDetails[_mid];
         var _isBracket = _m._isBracket;
         h+='<div class="pro-match-card">';
-        h+='<div class="pro-match-hd" onclick="proToggleDetail(\''+_mid+'\')"><div>';
-        h+='<div class="pro-match-name">'+_esc(_m.a)+' <span style="color:var(--muted);font-size:10px">vs</span> '+_esc(_m.b)+'</div>';
-        var _groupLabel = _isBracket 
-          ? '<span style="background:rgba(245,197,24,0.15);color:var(--gold);padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;letter-spacing:1px">🏆 '+_esc(_m._stageLabel.toUpperCase())+'</span>'
-          : 'Girone '+_m.group;
-        h+='<div class="pro-match-sub">'+_groupLabel+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+' <span style="color:var(--muted)">'+(_open?'▴':'▾')+'</span></div>';
-        h+='</div><div class="pro-1x2">';
+        // ── PARTITE DEL TABELLONE: layout speciale a 2 colonne ──
         if(_isBracket){
-          // PASSAGGIO DEL TURNO: 1 / 2 (no X)
-          h+='<div class="pro-qb'+(_selLbl==='Passa 1'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'passturno\',\'Passa 1\','+_q.q1+')"><span class="pro-qb-l">1</span><span class="pro-qb-v">'+_q.q1+'</span></div>';
-          h+='<div class="pro-qb'+(_selLbl==='Passa 2'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'passturno\',\'Passa 2\','+_q.q2+')"><span class="pro-qb-l">2</span><span class="pro-qb-v">'+_q.q2+'</span></div>';
-        } else {
-          h+='<div class="pro-qb'+(_selLbl==='1'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'1\','+_q.q1+')"><span class="pro-qb-l">1</span><span class="pro-qb-v">'+_q.q1+'</span></div>';
-          h+='<div class="pro-qb'+(_selLbl==='X'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'X\','+_q.qX+')"><span class="pro-qb-l">X</span><span class="pro-qb-v">'+_q.qX+'</span></div>';
-          h+='<div class="pro-qb'+(_selLbl==='2'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'2\','+_q.q2+')"><span class="pro-qb-l">2</span><span class="pro-qb-v">'+_q.q2+'</span></div>';
-        }
-        h+='</div></div>';
-        
-        // ANTEPRIMA MARCATORI (solo per partite del tabellone, visibile sempre)
-        if(_isBracket){
+          // Header: titolo squadre + sottotitolo + ▾
+          h+='<div onclick="proToggleDetail(\''+_mid+'\')" style="cursor:pointer;padding:8px 0 4px">';
+          h+='<div class="pro-match-name">'+_esc(_m.a)+' <span style="color:var(--muted);font-size:10px">vs</span> '+_esc(_m.b)+'</div>';
+          h+='<div class="pro-match-sub" style="margin-top:4px"><span style="background:rgba(245,197,24,0.15);color:var(--gold);padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;letter-spacing:1px">🏆 '+_esc(_m._stageLabel.toUpperCase())+'</span>'+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+' <span style="color:var(--muted);margin-left:6px">'+(_open?'▴':'▾')+'</span></div>';
+          h+='</div>';
+          
+          // CALCOLO MARCATORI per la preview
           var _previewA = _getScorersForTeam(_m.a, _isF);
           var _previewB = _getScorersForTeam(_m.b, _isF);
           var _allPrev = [];
           Object.keys(_previewA).forEach(function(n){ _allPrev.push({name:n, goals:_previewA[n]}); });
           Object.keys(_previewB).forEach(function(n){ _allPrev.push({name:n, goals:_previewB[n]}); });
           _allPrev.sort(function(a,b){return b.goals-a.goals;});
+          
+          // LAYOUT 2 COLONNE: passaggio (sx) | marcatore (dx)
+          h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
+          
+          // ═══ COLONNA SX: Passaggio del turno ═══
+          h += '<div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:8px">';
+          h += '<div style="font-size:9px;color:var(--muted);font-weight:700;letter-spacing:1px;text-align:center;margin-bottom:6px">PASSAGGIO TURNO</div>';
+          h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">';
+          h += '<div onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'passturno\',\'Passa 1\','+_q.q1+')" style="display:flex;flex-direction:column;align-items:center;padding:6px 4px;border-radius:7px;cursor:pointer;'+(_selLbl==='Passa 1'?'background:rgba(245,197,24,0.18);border:1px solid var(--gold)':'background:var(--s2);border:1px solid var(--border)')+'"><span style="font-size:10px;color:var(--muted);font-weight:700">1</span><span style="font-family:Anton,sans-serif;font-size:15px;color:var(--gold);margin-top:1px">'+_q.q1+'</span></div>';
+          h += '<div onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'passturno\',\'Passa 2\','+_q.q2+')" style="display:flex;flex-direction:column;align-items:center;padding:6px 4px;border-radius:7px;cursor:pointer;'+(_selLbl==='Passa 2'?'background:rgba(245,197,24,0.18);border:1px solid var(--gold)':'background:var(--s2);border:1px solid var(--border)')+'"><span style="font-size:10px;color:var(--muted);font-weight:700">2</span><span style="font-family:Anton,sans-serif;font-size:15px;color:var(--gold);margin-top:1px">'+_q.q2+'</span></div>';
+          h += '</div>';
+          h += '</div>';
+          
+          // ═══ COLONNA DX: Marcatore (top giocatore + quota cliccabile) ═══
+          h += '<div style="background:var(--s1);border:1px solid rgba(245,197,24,0.25);border-radius:10px;padding:8px;position:relative;overflow:hidden">';
+          h += '<div style="position:absolute;top:-10px;right:-10px;width:40px;height:40px;background:radial-gradient(circle,rgba(245,197,24,0.15),transparent);pointer-events:none"></div>';
+          h += '<div style="font-size:9px;color:var(--gold);font-weight:700;letter-spacing:1px;text-align:center;margin-bottom:6px">⚽ MARCATORE</div>';
+          
           if(_allPrev.length > 0){
             var _top = _allPrev[0];
             var _topOdds = _calcScorerOdds(_top.goals, '1+');
-            var _topInitials = _top.name.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2);
             var _topLabel = _top.name + ' 1+';
             var _topIsSel = _selLbl===_topLabel;
             var _topLabelE = _topLabel.replace(/'/g,"\\'");
             var _crown = (_top.goals>=5) ? '👑 ' : '';
+            var _topFirstName = _top.name.split(' ')[0];
             
-            h += '<div style="margin:10px -2px 0;padding:10px;background:linear-gradient(135deg,rgba(245,197,24,0.1),rgba(245,197,24,0.02));border:1px solid rgba(245,197,24,0.3);border-radius:10px;position:relative">';
-            
-            // Label novità
-            h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">';
-            h += '<span style="font-size:14px">⚽</span>';
-            h += '<span style="font-family:Inter,sans-serif;font-size:10px;font-weight:800;color:var(--gold);letter-spacing:1px">MARCATORI</span>';
-            h += '<span style="flex:1;height:1px;background:rgba(245,197,24,0.2)"></span>';
-            h += '<span style="font-size:9px;color:var(--muted);font-weight:600">'+(_allPrev.length)+' giocator'+(_allPrev.length===1?'e':'i')+'</span>';
+            // Mini-card cliccabile
+            h += '<div onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'marcatore_1+\',\''+_topLabelE+'\','+_topOdds+')" style="display:flex;flex-direction:column;align-items:center;padding:6px 4px;border-radius:7px;cursor:pointer;'+(_topIsSel?'background:rgba(245,197,24,0.18);border:1px solid var(--gold)':'background:var(--s2);border:1px solid var(--border)')+'">';
+            h += '<div style="font-size:9px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;text-align:center;line-height:1.1">'+_crown+_esc(_topFirstName)+' 1+</div>';
+            h += '<div style="font-family:Anton,sans-serif;font-size:15px;color:var(--gold);margin-top:2px;line-height:1">'+_topOdds+'</div>';
             h += '</div>';
             
-            // Riga top marcatore (cliccabile per scommettere subito)
-            h += '<div onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'marcatore_1+\',\''+_topLabelE+'\','+_topOdds+')" style="display:flex;align-items:center;gap:10px;background:'+(_topIsSel?'rgba(245,197,24,0.2)':'rgba(0,0,0,0.25)')+';border:1px solid '+(_topIsSel?'var(--gold)':'var(--border)')+';border-radius:8px;padding:7px 10px;cursor:pointer;margin-bottom:6px">';
-            h += '<div style="width:28px;height:28px;border-radius:50%;background:rgba(245,197,24,0.15);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;font-size:10px;font-weight:700;color:var(--gold);flex-shrink:0">'+_esc(_topInitials)+'</div>';
-            h += '<div style="flex:1;min-width:0">';
-            h += '<div style="font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.1">'+_crown+_esc(_top.name)+'</div>';
-            h += '<div style="font-size:9px;color:var(--muted);margin-top:1px">Segna 1+ gol</div>';
-            h += '</div>';
-            h += '<div style="display:flex;flex-direction:column;align-items:center;background:'+(_topIsSel?'#000':'rgba(245,197,24,0.1)')+';border:1px solid '+(_topIsSel?'var(--gold)':'transparent')+';padding:4px 10px;border-radius:7px;flex-shrink:0">';
-            h += '<div style="font-size:8px;font-weight:700;color:'+(_topIsSel?'var(--gold)':'var(--muted)')+';letter-spacing:0.5px">QUOTA</div>';
-            h += '<div style="font-family:Manrope,Anton,sans-serif;font-size:15px;font-weight:800;color:var(--gold);line-height:1">'+_topOdds+'</div>';
-            h += '</div>';
-            h += '</div>';
-            
-            // Pulsante "vedi tutti"
             if(_allPrev.length > 1){
-              h += '<div onclick="event.stopPropagation();proToggleDetail(\''+_mid+'\')" style="text-align:center;font-size:10px;color:var(--gold);font-weight:700;cursor:pointer;padding:4px;letter-spacing:0.5px">+ '+(_allPrev.length-1)+' altr'+((_allPrev.length-1)===1?'o marcatore':'i marcatori')+' '+(_open?'▴':'▾')+'</div>';
+              h += '<div style="text-align:center;font-size:9px;color:var(--gold);font-weight:700;margin-top:4px;letter-spacing:0.3px">+'+(_allPrev.length-1)+' altri ▾</div>';
             }
-            
-            h += '</div>';
+          } else {
+            h += '<div style="text-align:center;padding:6px 4px;font-size:9px;color:var(--muted);font-style:italic">Nessun marcatore</div>';
           }
+          
+          h += '</div>';
+          h += '</div>'; // end grid 2 colonne
+          
+        } else {
+          // ── PARTITE DEI GIRONI: layout originale 1X2 ──
+          h+='<div class="pro-match-hd" onclick="proToggleDetail(\''+_mid+'\')"><div>';
+          h+='<div class="pro-match-name">'+_esc(_m.a)+' <span style="color:var(--muted);font-size:10px">vs</span> '+_esc(_m.b)+'</div>';
+          h+='<div class="pro-match-sub">Girone '+_m.group+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+' <span style="color:var(--muted)">'+(_open?'▴':'▾')+'</span></div>';
+          h+='</div><div class="pro-1x2">';
+          h+='<div class="pro-qb'+(_selLbl==='1'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'1\','+_q.q1+')"><span class="pro-qb-l">1</span><span class="pro-qb-v">'+_q.q1+'</span></div>';
+          h+='<div class="pro-qb'+(_selLbl==='X'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'X\','+_q.qX+')"><span class="pro-qb-l">X</span><span class="pro-qb-v">'+_q.qX+'</span></div>';
+          h+='<div class="pro-qb'+(_selLbl==='2'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'2\','+_q.q2+')"><span class="pro-qb-l">2</span><span class="pro-qb-v">'+_q.q2+'</span></div>';
+          h+='</div></div>';
         }
         if(_open){
           var _aE=_m.a.replace(/'/g,"\\'"),_bE=_m.b.replace(/'/g,"\\'");
