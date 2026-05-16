@@ -1481,45 +1481,42 @@ function renderTabellone(){
   // ═══════════════════════════════════════════════
   // CONTAINER PRINCIPALE
   // ═══════════════════════════════════════════════
-  h += '<div style="padding:12px 10px;background:#050505;position:relative;overflow:hidden">';
+  h += '<div style="padding:8px 8px 12px;background:#050505;position:relative;overflow:hidden">';
   
   // Pattern di sfondo - linee diagonali subtle
   h += '<div style="position:absolute;inset:0;opacity:0.4;background-image:repeating-linear-gradient(135deg,transparent,transparent 30px,rgba(245,197,24,0.02) 30px,rgba(245,197,24,0.02) 31px);pointer-events:none"></div>';
   
   // Spot di luce dietro al logo
-  h += '<div style="position:absolute;top:30px;left:50%;transform:translateX(-50%);width:280px;height:280px;background:radial-gradient(circle,rgba(245,197,24,0.18),transparent 60%);pointer-events:none;filter:blur(20px)"></div>';
+  h += '<div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);width:180px;height:180px;background:radial-gradient(circle,rgba(245,197,24,0.15),transparent 60%);pointer-events:none;filter:blur(16px)"></div>';
   
   h += '<div style="position:relative;z-index:1;max-width:440px;margin:0 auto">';
   
   // ═══════════════════════════════════════════════
-  // HEADER EPICO con logo
+  // HEADER compatto
   // ═══════════════════════════════════════════════
-  h += '<div style="text-align:center;padding:20px 0 24px;position:relative">';
+  h += '<div style="text-align:center;padding:10px 0 14px;position:relative">';
   
   // Banner top: edizione anno
-  h += '<div style="display:inline-flex;align-items:center;gap:10px;padding:5px 16px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);border-radius:30px;margin-bottom:18px">';
-  h += '<div style="width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold)"></div>';
-  h += '<span style="font-family:Inter,sans-serif;font-size:10px;letter-spacing:0.3em;color:var(--gold);font-weight:700;text-transform:uppercase">Edizione 2026 · '+leagueIcon+' '+leagueName+'</span>';
-  h += '<div style="width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold)"></div>';
+  h += '<div style="display:inline-flex;align-items:center;gap:8px;padding:3px 12px;background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.22);border-radius:20px;margin-bottom:10px">';
+  h += '<div style="width:4px;height:4px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold)"></div>';
+  h += '<span style="font-family:Inter,sans-serif;font-size:9px;letter-spacing:0.22em;color:var(--gold);font-weight:700;text-transform:uppercase">2026 · '+leagueIcon+' '+leagueName+'</span>';
+  h += '<div style="width:4px;height:4px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold)"></div>';
   h += '</div>';
   
-  // LOGO grande con effetti
-  h += '<div style="width:120px;height:120px;margin:0 auto 16px;position:relative">';
-  // Anello esterno conico animato
-  h += '<div style="position:absolute;inset:-8px;border-radius:50%;background:conic-gradient(from 0deg, transparent, var(--gold), transparent, var(--gold), transparent);animation:slowRotate 12s linear infinite;mask:radial-gradient(circle,transparent 56%,#000 58%);-webkit-mask:radial-gradient(circle,transparent 56%,#000 58%);opacity:0.6"></div>';
-  // Punti cardinali
-  h += '<div style="position:absolute;inset:-3px;border-radius:50%;border:1px dashed rgba(245,197,24,0.3);animation:slowRotate 30s linear infinite reverse"></div>';
-  // Sfondo logo
-  h += '<div style="width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 30% 30%,#1a1a1a 0%,#0a0a0a 80%);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 12px 40px rgba(245,197,24,0.25),inset 0 2px 8px rgba(0,0,0,0.6),inset 0 -1px 3px rgba(245,197,24,0.2)">';
-  h += '<img src="'+logoSrc+'" style="width:75%;height:75%;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.5))" alt="SAC"/>';
+  // LOGO piccolo con effetti
+  h += '<div style="width:68px;height:68px;margin:0 auto 10px;position:relative">';
+  h += '<div style="position:absolute;inset:-5px;border-radius:50%;background:conic-gradient(from 0deg, transparent, var(--gold), transparent, var(--gold), transparent);animation:slowRotate 12s linear infinite;mask:radial-gradient(circle,transparent 54%,#000 56%);-webkit-mask:radial-gradient(circle,transparent 54%,#000 56%);opacity:0.6"></div>';
+  h += '<div style="position:absolute;inset:-2px;border-radius:50%;border:1px dashed rgba(245,197,24,0.3);animation:slowRotate 30s linear infinite reverse"></div>';
+  h += '<div style="width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 30% 30%,#1a1a1a 0%,#0a0a0a 80%);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 8px 24px rgba(245,197,24,0.2),inset 0 1px 4px rgba(0,0,0,0.6)">';
+  h += '<img src="'+logoSrc+'" style="width:75%;height:75%;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))" alt="SAC"/>';
   h += '</div>';
   h += '</div>';
   
-  // Titolo principale "TABELLONE"
-  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:38px;font-weight:900;letter-spacing:-0.04em;line-height:0.9;background:linear-gradient(180deg,#fff 0%,#fff 40%,#c9a227 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-shadow:0 4px 20px rgba(245,197,24,0.3)">TABELLONE</div>';
+  // Titolo "TABELLONE" più piccolo
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:22px;font-weight:900;letter-spacing:-0.03em;line-height:0.9;background:linear-gradient(180deg,#fff 0%,#fff 40%,#c9a227 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">TABELLONE</div>';
   
-  // Sottotitolo "Serie A Caro"
-  h += '<div style="font-family:Inter,sans-serif;font-size:11px;letter-spacing:0.5em;color:#52525b;font-weight:600;margin-top:6px;text-transform:uppercase">— Serie A Caro —</div>';
+  // Sottotitolo
+  h += '<div style="font-family:Inter,sans-serif;font-size:9px;letter-spacing:0.35em;color:#52525b;font-weight:600;margin-top:4px;text-transform:uppercase">Serie A Caro</div>';
   
   h += '</div>'; // header
   
@@ -1533,30 +1530,30 @@ function renderTabellone(){
   var prevStage = curIdx>0 ? stageOrder[curIdx-1] : stage;
   var nextStage = curIdx<stageOrder.length-1 ? stageOrder[curIdx+1] : stage;
   
-  h += '<div style="display:flex;align-items:center;gap:8px;margin:0 0 16px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:14px;padding:5px;backdrop-filter:blur(10px)">';
-  h += '<button onclick="_setStage(\''+prevStage+'\')" style="width:34px;height:34px;border-radius:10px;background:'+(prevDis?'transparent':'rgba(255,255,255,0.04)')+';border:1px solid '+(prevDis?'transparent':'var(--border)')+';color:'+(prevDis?'#27272a':'#a1a1aa')+';display:flex;align-items:center;justify-content:center;cursor:'+(prevDis?'not-allowed':'pointer')+';flex-shrink:0;transition:all .15s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="15 18 9 12 15 6"/></svg></button>';
+  h += '<div style="display:flex;align-items:center;gap:6px;margin:0 0 12px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:4px">';
+  h += '<button onclick="_setStage(\''+prevStage+'\')" style="width:26px;height:26px;border-radius:7px;background:'+(prevDis?'transparent':'rgba(255,255,255,0.04)')+';border:1px solid '+(prevDis?'transparent':'var(--border)')+';color:'+(prevDis?'#27272a':'#a1a1aa')+';display:flex;align-items:center;justify-content:center;cursor:'+(prevDis?'not-allowed':'pointer')+';flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><polyline points="15 18 9 12 15 6"/></svg></button>';
   
-  h += '<div style="flex:1;display:flex;gap:4px;overflow:hidden">';
+  h += '<div style="flex:1;display:flex;gap:3px;overflow:hidden">';
   stageOrder.forEach(function(s){
     var lbl = stageInfo[s].label;
     var active = s===stage;
     var style = active 
-      ? 'background:linear-gradient(180deg,#fff 0%,#e0e0e0 100%);color:#000;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,0.3),inset 0 -2px 0 rgba(0,0,0,0.05)'
+      ? 'background:linear-gradient(180deg,#fff 0%,#e0e0e0 100%);color:#000;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,0.3)'
       : 'background:transparent;color:#52525b;font-weight:600';
-    h += '<div onclick="_setStage(\''+s+'\')" style="flex:1;padding:10px 6px;font-family:Inter,sans-serif;font-size:10px;letter-spacing:0.15em;cursor:pointer;border-radius:10px;text-transform:uppercase;text-align:center;transition:all .15s;'+style+'">'+lbl+'</div>';
+    h += '<div onclick="_setStage(\''+s+'\')" style="flex:1;padding:7px 4px;font-family:Inter,sans-serif;font-size:9px;letter-spacing:0.12em;cursor:pointer;border-radius:7px;text-transform:uppercase;text-align:center;'+style+'">'+lbl+'</div>';
   });
   h += '</div>';
   
-  h += '<button onclick="_setStage(\''+nextStage+'\')" style="width:34px;height:34px;border-radius:10px;background:'+(nextDis?'transparent':'rgba(255,255,255,0.04)')+';border:1px solid '+(nextDis?'transparent':'var(--border)')+';color:'+(nextDis?'#27272a':'#a1a1aa')+';display:flex;align-items:center;justify-content:center;cursor:'+(nextDis?'not-allowed':'pointer')+';flex-shrink:0;transition:all .15s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="9 18 15 12 9 6"/></svg></button>';
+  h += '<button onclick="_setStage(\''+nextStage+'\')" style="width:26px;height:26px;border-radius:7px;background:'+(nextDis?'transparent':'rgba(255,255,255,0.04)')+';border:1px solid '+(nextDis?'transparent':'var(--border)')+';color:'+(nextDis?'#27272a':'#a1a1aa')+';display:flex;align-items:center;justify-content:center;cursor:'+(nextDis?'not-allowed':'pointer')+';flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><polyline points="9 18 15 12 9 6"/></svg></button>';
   h += '</div>';
   
   // ═══════════════════════════════════════════════
-  // STAGE TITLE BAR (più drammatico)
+  // STAGE TITLE BAR (più piccolo)
   // ═══════════════════════════════════════════════
-  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:0 4px">';
-  h += '<div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(245,197,24,0.5))"></div>';
-  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:14px;font-weight:800;letter-spacing:0.3em;color:var(--gold);text-transform:uppercase;text-shadow:0 0 12px rgba(245,197,24,0.5)">'+sInfo.label+'</div>';
-  h += '<div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(245,197,24,0.5),transparent)"></div>';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:0 4px">';
+  h += '<div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(245,197,24,0.4))"></div>';
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.25em;color:var(--gold);text-transform:uppercase">'+sInfo.label+'</div>';
+  h += '<div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(245,197,24,0.4),transparent)"></div>';
   h += '</div>';
   
   // ═══════════════════════════════════════════════
@@ -1593,105 +1590,99 @@ function renderTabellone(){
       : 'background:linear-gradient(180deg,#141414 0%,#0a0a0a 100%);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,0.35),inset 0 1px 0 rgba(255,255,255,0.03)';
     
     // Card container
-    h += '<div'+clickAttr+' style="position:relative;margin-bottom:14px;border-radius:18px;overflow:hidden;'+cardBg+';transition:all .2s;'+cursor+'">';
+    h += '<div'+clickAttr+' style="position:relative;margin-bottom:8px;border-radius:14px;overflow:hidden;'+cardBg+';transition:all .2s;'+cursor+'">';
     
     // Glow superiore (line)
     h += '<div style="position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,'+(isFinalMatch?'var(--gold)':'rgba(255,255,255,0.12)')+',transparent)"></div>';
     
     // Header: numero match + status
-    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.3)">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.3)">';
     
     // Numero partita stilizzato
     var matchNum = matches.length>1 ? String(idx+1).padStart(2,'0') : '';
-    h += '<div style="display:flex;align-items:center;gap:8px">';
-    h += '<div style="width:24px;height:24px;border-radius:6px;background:'+(isFinalMatch?'linear-gradient(135deg,#c9a227,#8b6914)':'rgba(255,255,255,0.06)')+';display:flex;align-items:center;justify-content:center;font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:800;color:'+(isFinalMatch?'#000':'#a1a1aa')+'">'+sInfo.code+'</div>';
-    if(matchNum) h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#a1a1aa;font-weight:600;letter-spacing:0.1em">'+matchNum+'</div>';
-    h += '<div style="font-family:Inter,sans-serif;font-size:10px;color:#52525b;font-weight:600;letter-spacing:0.18em;text-transform:uppercase">'+sInfo.label+'</div>';
+    h += '<div style="display:flex;align-items:center;gap:6px">';
+    h += '<div style="width:18px;height:18px;border-radius:5px;background:'+(isFinalMatch?'linear-gradient(135deg,#c9a227,#8b6914)':'rgba(255,255,255,0.06)')+';display:flex;align-items:center;justify-content:center;font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:800;color:'+(isFinalMatch?'#000':'#a1a1aa')+'">'+sInfo.code+'</div>';
+    if(matchNum) h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#a1a1aa;font-weight:600;letter-spacing:0.1em">'+matchNum+'</div>';
+    h += '<div style="font-family:Inter,sans-serif;font-size:9px;color:#52525b;font-weight:600;letter-spacing:0.15em;text-transform:uppercase">'+sInfo.label+'</div>';
     h += '</div>';
     
-    // Status indicator
+    // Status indicator (più piccolo)
     if(played){
-      h += '<div style="display:inline-flex;align-items:center;gap:6px;font-family:Inter,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#10b981;background:rgba(16,185,129,0.08);padding:4px 10px;border-radius:20px;border:1px solid rgba(16,185,129,0.2)">';
-      h += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="width:10px;height:10px"><polyline points="20 6 9 17 4 12"/></svg>';
+      h += '<div style="display:inline-flex;align-items:center;gap:4px;font-family:Inter,sans-serif;font-size:8px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#10b981;background:rgba(16,185,129,0.08);padding:3px 7px;border-radius:14px;border:1px solid rgba(16,185,129,0.2)">';
+      h += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="width:8px;height:8px"><polyline points="20 6 9 17 4 12"/></svg>';
       h += '<span>Finita</span></div>';
     } else if(bothEmpty){
-      h += '<div style="display:inline-flex;align-items:center;gap:6px;font-family:Inter,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#52525b;background:rgba(255,255,255,0.02);padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.05)">';
-      h += '<div style="width:6px;height:6px;border-radius:50%;background:#52525b"></div>';
+      h += '<div style="display:inline-flex;align-items:center;gap:4px;font-family:Inter,sans-serif;font-size:8px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#52525b;background:rgba(255,255,255,0.02);padding:3px 7px;border-radius:14px;border:1px solid rgba(255,255,255,0.05)">';
+      h += '<div style="width:5px;height:5px;border-radius:50%;background:#52525b"></div>';
       h += '<span>Attesa</span></div>';
     } else {
-      h += '<div style="display:inline-flex;align-items:center;gap:6px;font-family:Inter,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);background:rgba(245,197,24,0.08);padding:4px 10px;border-radius:20px;border:1px solid rgba(245,197,24,0.2)">';
-      h += '<div style="width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold)"></div>';
-      h += '<span>In programma</span></div>';
+      h += '<div style="display:inline-flex;align-items:center;gap:4px;font-family:Inter,sans-serif;font-size:8px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);background:rgba(245,197,24,0.08);padding:3px 7px;border-radius:14px;border:1px solid rgba(245,197,24,0.2)">';
+      h += '<div style="width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 5px var(--gold)"></div>';
+      h += '<span>In Programma</span></div>';
     }
     h += '</div>';
     
     // ═══════════════════════════════
     // BODY: scontro tra le squadre
     // ═══════════════════════════════
-    h += '<div style="padding:18px 16px;position:relative">';
+    h += '<div style="padding:10px 12px;position:relative">';
     
     // Squadra A
     var teamARowStyle = winnerB ? 'opacity:0.4' : '';
     var nameAColor = winnerA ? 'var(--gold)' : (a ? '#f4f4f5' : '#52525b');
     var scoreAColor = winnerA ? '#e8c447' : '#f4f4f5';
     
-    h += '<div style="display:flex;align-items:center;gap:14px;'+teamARowStyle+';position:relative">';
+    h += '<div style="display:flex;align-items:center;gap:10px;'+teamARowStyle+';position:relative">';
     if(winnerA){
-      h += '<div style="position:absolute;left:-2px;top:50%;transform:translateY(-50%);width:3px;height:70%;background:linear-gradient(180deg,#e8c447,#8b6914);border-radius:3px;box-shadow:0 0 12px rgba(245,197,24,0.6)"></div>';
+      h += '<div style="position:absolute;left:-2px;top:50%;transform:translateY(-50%);width:3px;height:60%;background:linear-gradient(180deg,#e8c447,#8b6914);border-radius:3px;box-shadow:0 0 8px rgba(245,197,24,0.5)"></div>';
     }
-    // Bandiera grande
+    // Bandiera
     var flagDisplayA = flagA || _teamMark(a) || '?';
-    var flagStyle = flagA ? 'font-size:32px;line-height:1' : 'font-size:13px;font-weight:800;color:#52525b';
-    h += '<div style="width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:'+(winnerA?'linear-gradient(135deg,rgba(245,197,24,0.15),rgba(245,197,24,0.03))':'rgba(255,255,255,0.04)')+';border:1px solid '+(winnerA?'rgba(245,197,24,0.3)':'rgba(255,255,255,0.08)')+';box-shadow:inset 0 1px 2px rgba(0,0,0,0.4),0 2px 6px rgba(0,0,0,0.3)">';
-    h += '<span style="'+flagStyle+';filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))">'+flagDisplayA+'</span>';
+    var flagStyle = flagA ? 'font-size:22px;line-height:1' : 'font-size:11px;font-weight:800;color:#52525b';
+    h += '<div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:'+(winnerA?'linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.02))':'rgba(255,255,255,0.04)')+';border:1px solid '+(winnerA?'rgba(245,197,24,0.28)':'rgba(255,255,255,0.08)')+';box-shadow:inset 0 1px 2px rgba(0,0,0,0.4)">';
+    h += '<span style="'+flagStyle+'">'+flagDisplayA+'</span>';
     h += '</div>';
     
-    // Nome + label
+    // Nome
     h += '<div style="flex:1;min-width:0">';
-    h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:'+(winnerA?'#c9a227':'#52525b')+';letter-spacing:0.2em;font-weight:600;margin-bottom:3px">'+(winnerA?'WINNER':'TEAM A')+'</div>';
-    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:18px;font-weight:800;color:'+nameAColor+';letter-spacing:-0.02em;line-height:1;'+(!a?'font-style:italic;font-weight:500':'')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a ? _esc(nameA) : 'Da definire')+'</div>';
+    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:14px;font-weight:800;color:'+nameAColor+';letter-spacing:-0.01em;line-height:1.1;'+(!a?'font-style:italic;font-weight:500':'')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a ? _esc(nameA) : 'Da definire')+'</div>';
     h += '</div>';
     
     // Score
-    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:34px;font-weight:900;color:'+scoreAColor+';letter-spacing:-0.05em;font-variant-numeric:tabular-nums;min-width:30px;text-align:right;line-height:1;text-shadow:'+(winnerA?'0 0 20px rgba(245,197,24,0.3)':'none')+'">'+(ga===null?'<span style="color:#27272a">—</span>':ga)+'</div>';
+    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:22px;font-weight:900;color:'+scoreAColor+';letter-spacing:-0.04em;font-variant-numeric:tabular-nums;min-width:22px;text-align:right;line-height:1">'+(ga===null?'<span style="color:#27272a">—</span>':ga)+'</div>';
     h += '</div>';
     
-    // Divider con "VS"
-    h += '<div style="display:flex;align-items:center;gap:14px;margin:10px 0;padding-left:66px">';
-    h += '<div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.12),rgba(255,255,255,0.06))"></div>';
-    h += '<span style="font-family:Manrope,Inter,sans-serif;font-size:11px;font-weight:800;color:'+(isFinalMatch?'var(--gold)':'#52525b')+';letter-spacing:0.3em;opacity:0.7">VS</span>';
-    h += '<div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06))"></div>';
-    h += '</div>';
+    // Divider sottile
+    h += '<div style="height:1px;background:rgba(255,255,255,0.06);margin:8px 0 8px 46px"></div>';
     
     // Squadra B
     var teamBRowStyle = winnerA ? 'opacity:0.4' : '';
     var nameBColor = winnerB ? 'var(--gold)' : (b ? '#f4f4f5' : '#52525b');
     var scoreBColor = winnerB ? '#e8c447' : '#f4f4f5';
     
-    h += '<div style="display:flex;align-items:center;gap:14px;'+teamBRowStyle+';position:relative">';
+    h += '<div style="display:flex;align-items:center;gap:10px;'+teamBRowStyle+';position:relative">';
     if(winnerB){
-      h += '<div style="position:absolute;left:-2px;top:50%;transform:translateY(-50%);width:3px;height:70%;background:linear-gradient(180deg,#e8c447,#8b6914);border-radius:3px;box-shadow:0 0 12px rgba(245,197,24,0.6)"></div>';
+      h += '<div style="position:absolute;left:-2px;top:50%;transform:translateY(-50%);width:3px;height:60%;background:linear-gradient(180deg,#e8c447,#8b6914);border-radius:3px;box-shadow:0 0 8px rgba(245,197,24,0.5)"></div>';
     }
     var flagDisplayB = flagB || _teamMark(b) || '?';
-    var flagStyleB = flagB ? 'font-size:32px;line-height:1' : 'font-size:13px;font-weight:800;color:#52525b';
-    h += '<div style="width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:'+(winnerB?'linear-gradient(135deg,rgba(245,197,24,0.15),rgba(245,197,24,0.03))':'rgba(255,255,255,0.04)')+';border:1px solid '+(winnerB?'rgba(245,197,24,0.3)':'rgba(255,255,255,0.08)')+';box-shadow:inset 0 1px 2px rgba(0,0,0,0.4),0 2px 6px rgba(0,0,0,0.3)">';
-    h += '<span style="'+flagStyleB+';filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))">'+flagDisplayB+'</span>';
+    var flagStyleB = flagB ? 'font-size:22px;line-height:1' : 'font-size:11px;font-weight:800;color:#52525b';
+    h += '<div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:'+(winnerB?'linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.02))':'rgba(255,255,255,0.04)')+';border:1px solid '+(winnerB?'rgba(245,197,24,0.28)':'rgba(255,255,255,0.08)')+';box-shadow:inset 0 1px 2px rgba(0,0,0,0.4)">';
+    h += '<span style="'+flagStyleB+'">'+flagDisplayB+'</span>';
     h += '</div>';
     
     h += '<div style="flex:1;min-width:0">';
-    h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:'+(winnerB?'#c9a227':'#52525b')+';letter-spacing:0.2em;font-weight:600;margin-bottom:3px">'+(winnerB?'WINNER':'TEAM B')+'</div>';
-    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:18px;font-weight:800;color:'+nameBColor+';letter-spacing:-0.02em;line-height:1;'+(!b?'font-style:italic;font-weight:500':'')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(b ? _esc(nameB) : 'Da definire')+'</div>';
+    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:14px;font-weight:800;color:'+nameBColor+';letter-spacing:-0.01em;line-height:1.1;'+(!b?'font-style:italic;font-weight:500':'')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(b ? _esc(nameB) : 'Da definire')+'</div>';
     h += '</div>';
     
-    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:34px;font-weight:900;color:'+scoreBColor+';letter-spacing:-0.05em;font-variant-numeric:tabular-nums;min-width:30px;text-align:right;line-height:1;text-shadow:'+(winnerB?'0 0 20px rgba(245,197,24,0.3)':'none')+'">'+(gb===null?'<span style="color:#27272a">—</span>':gb)+'</div>';
+    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:22px;font-weight:900;color:'+scoreBColor+';letter-spacing:-0.04em;font-variant-numeric:tabular-nums;min-width:22px;text-align:right;line-height:1">'+(gb===null?'<span style="color:#27272a">—</span>':gb)+'</div>';
     h += '</div>';
     
     // Footer match: MVP se presente
     if(match.mvp){
-      h += '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;gap:8px">';
-      h += '<svg viewBox="0 0 24 24" fill="var(--gold)" style="width:14px;height:14px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
-      h += '<span style="font-family:Inter,sans-serif;font-size:11px;font-weight:700;color:var(--gold);letter-spacing:0.05em">'+_esc(match.mvp)+'</span>';
-      h += '<span style="font-family:Inter,sans-serif;font-size:9px;color:#52525b;letter-spacing:0.2em;text-transform:uppercase;font-weight:600">— MVP</span>';
+      h += '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;gap:6px">';
+      h += '<svg viewBox="0 0 24 24" fill="var(--gold)" style="width:11px;height:11px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+      h += '<span style="font-family:Inter,sans-serif;font-size:10px;font-weight:700;color:var(--gold);letter-spacing:0.05em">'+_esc(match.mvp)+'</span>';
+      h += '<span style="font-family:Inter,sans-serif;font-size:8px;color:#52525b;letter-spacing:0.18em;text-transform:uppercase;font-weight:600">MVP</span>';
       h += '</div>';
     }
     
@@ -1707,21 +1698,18 @@ function renderTabellone(){
     var champFlag = splitC.flag || '🏆';
     var champNameClean = splitC.name || championName;
     
-    h += '<div style="margin-top:20px;position:relative">';
+    h += '<div style="margin-top:14px;position:relative">';
     
-    // Confetti/sparkles dietro
-    h += '<div style="position:absolute;inset:-20px;background:radial-gradient(ellipse at center,rgba(245,197,24,0.2),transparent 60%);pointer-events:none;filter:blur(20px)"></div>';
+    h += '<div style="position:absolute;inset:-14px;background:radial-gradient(ellipse at center,rgba(245,197,24,0.18),transparent 60%);pointer-events:none;filter:blur(14px)"></div>';
     
-    h += '<div style="position:relative;background:linear-gradient(180deg,#241a08 0%,#1a1207 30%,#0a0a0a 100%);border:2px solid rgba(245,197,24,0.5);border-radius:22px;padding:28px 20px;text-align:center;overflow:hidden;box-shadow:0 24px 60px rgba(245,197,24,0.25),inset 0 1px 0 rgba(245,197,24,0.3)">';
+    h += '<div style="position:relative;background:linear-gradient(180deg,#241a08 0%,#1a1207 30%,#0a0a0a 100%);border:1.5px solid rgba(245,197,24,0.5);border-radius:16px;padding:18px 14px;text-align:center;overflow:hidden;box-shadow:0 16px 40px rgba(245,197,24,0.2),inset 0 1px 0 rgba(245,197,24,0.25)">';
     
-    // Linee decorative angoli
-    h += '<div style="position:absolute;top:0;left:0;width:60px;height:60px;border-top:2px solid var(--gold);border-left:2px solid var(--gold);border-radius:20px 0 0 0;opacity:0.6"></div>';
-    h += '<div style="position:absolute;top:0;right:0;width:60px;height:60px;border-top:2px solid var(--gold);border-right:2px solid var(--gold);border-radius:0 20px 0 0;opacity:0.6"></div>';
-    h += '<div style="position:absolute;bottom:0;left:0;width:60px;height:60px;border-bottom:2px solid var(--gold);border-left:2px solid var(--gold);border-radius:0 0 0 20px;opacity:0.6"></div>';
-    h += '<div style="position:absolute;bottom:0;right:0;width:60px;height:60px;border-bottom:2px solid var(--gold);border-right:2px solid var(--gold);border-radius:0 0 20px 0;opacity:0.6"></div>';
+    h += '<div style="position:absolute;top:0;left:0;width:36px;height:36px;border-top:1.5px solid var(--gold);border-left:1.5px solid var(--gold);border-radius:14px 0 0 0;opacity:0.6"></div>';
+    h += '<div style="position:absolute;top:0;right:0;width:36px;height:36px;border-top:1.5px solid var(--gold);border-right:1.5px solid var(--gold);border-radius:0 14px 0 0;opacity:0.6"></div>';
+    h += '<div style="position:absolute;bottom:0;left:0;width:36px;height:36px;border-bottom:1.5px solid var(--gold);border-left:1.5px solid var(--gold);border-radius:0 0 0 14px;opacity:0.6"></div>';
+    h += '<div style="position:absolute;bottom:0;right:0;width:36px;height:36px;border-bottom:1.5px solid var(--gold);border-right:1.5px solid var(--gold);border-radius:0 0 14px 0;opacity:0.6"></div>';
     
-    // Trofeo SVG grande
-    h += '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:70px;height:70px;margin:0 auto 12px;display:block;filter:drop-shadow(0 8px 20px rgba(245,197,24,0.4))">';
+    h += '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:42px;height:42px;margin:0 auto 8px;display:block;filter:drop-shadow(0 4px 10px rgba(245,197,24,0.4))">';
     h += '<defs><linearGradient id="champTr" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#fff8d6"/><stop offset="40%" stop-color="#e8c447"/><stop offset="100%" stop-color="#8b6914"/></linearGradient></defs>';
     h += '<path d="M 16 18 Q 6 20 6 30 Q 6 38 18 40" fill="none" stroke="url(#champTr)" stroke-width="3" stroke-linecap="round"/>';
     h += '<path d="M 48 18 Q 58 20 58 30 Q 58 38 46 40" fill="none" stroke="url(#champTr)" stroke-width="3" stroke-linecap="round"/>';
@@ -1733,19 +1721,16 @@ function renderTabellone(){
     h += '<rect x="18" y="58" width="28" height="5" rx="2" fill="#8b6914"/>';
     h += '</svg>';
     
-    // Label "CAMPIONE"
-    h += '<div style="font-family:Inter,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.5em;color:var(--gold);text-transform:uppercase;margin-bottom:10px;opacity:0.85">— Campione 2026 —</div>';
+    h += '<div style="font-family:Inter,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.4em;color:var(--gold);text-transform:uppercase;margin-bottom:6px;opacity:0.85">— Campione —</div>';
     
-    // Bandiera campione
-    h += '<div style="font-size:46px;margin-bottom:8px;line-height:1;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.5))">'+champFlag+'</div>';
+    h += '<div style="font-size:30px;margin-bottom:4px;line-height:1">'+champFlag+'</div>';
     
-    // Nome campione (Manrope huge)
-    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:38px;font-weight:900;letter-spacing:-0.04em;line-height:0.95;background:linear-gradient(180deg,#fff 0%,#fff 30%,#e8c447 80%,#a17800 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-shadow:0 4px 20px rgba(245,197,24,0.3)">'+_esc(champNameClean)+'</div>';
+    h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:24px;font-weight:900;letter-spacing:-0.03em;line-height:1;background:linear-gradient(180deg,#fff 0%,#fff 30%,#e8c447 80%,#a17800 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">'+_esc(champNameClean)+'</div>';
     
-    h += '<div style="font-family:Inter,sans-serif;font-size:11px;color:#52525b;margin-top:14px;letter-spacing:0.18em;text-transform:uppercase;font-weight:600">Serie A Caro · '+leagueName+'</div>';
+    h += '<div style="font-family:Inter,sans-serif;font-size:9px;color:#52525b;margin-top:8px;letter-spacing:0.15em;text-transform:uppercase;font-weight:600">Serie A Caro 2026 · '+leagueName+'</div>';
     
-    h += '</div>'; // inner
-    h += '</div>'; // wrapper
+    h += '</div>';
+    h += '</div>';
   }
   
   // Admin note compatta
