@@ -1481,15 +1481,9 @@ function renderTabellone(){
   // ═══════════════════════════════════════════════
   // CONTAINER PRINCIPALE
   // ═══════════════════════════════════════════════
-  h += '<div style="padding:8px 8px 12px;background:#050505;position:relative;overflow:hidden">';
+  h += '<div style="padding:8px 8px 12px;position:relative">';
   
-  // Pattern di sfondo - linee diagonali subtle
-  h += '<div style="position:absolute;inset:0;opacity:0.4;background-image:repeating-linear-gradient(135deg,transparent,transparent 30px,rgba(245,197,24,0.02) 30px,rgba(245,197,24,0.02) 31px);pointer-events:none"></div>';
-  
-  // Spot di luce dietro al logo
-  h += '<div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);width:180px;height:180px;background:radial-gradient(circle,rgba(245,197,24,0.15),transparent 60%);pointer-events:none;filter:blur(16px)"></div>';
-  
-  h += '<div style="position:relative;z-index:1;max-width:440px;margin:0 auto">';
+  h += '<div style="position:relative;max-width:440px;margin:0 auto">';
   
   // ═══════════════════════════════════════════════
   // HEADER compatto
@@ -1507,7 +1501,7 @@ function renderTabellone(){
   h += '<div style="width:68px;height:68px;margin:0 auto 10px;position:relative">';
   h += '<div style="position:absolute;inset:-5px;border-radius:50%;background:conic-gradient(from 0deg, transparent, var(--gold), transparent, var(--gold), transparent);animation:slowRotate 12s linear infinite;mask:radial-gradient(circle,transparent 54%,#000 56%);-webkit-mask:radial-gradient(circle,transparent 54%,#000 56%);opacity:0.6"></div>';
   h += '<div style="position:absolute;inset:-2px;border-radius:50%;border:1px dashed rgba(245,197,24,0.3);animation:slowRotate 30s linear infinite reverse"></div>';
-  h += '<div style="width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 30% 30%,#1a1a1a 0%,#0a0a0a 80%);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 8px 24px rgba(245,197,24,0.2),inset 0 1px 4px rgba(0,0,0,0.6)">';
+  h += '<div style="width:100%;height:100%;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 8px 24px rgba(245,197,24,0.2),inset 0 1px 4px rgba(0,0,0,0.4)">';
   h += '<img src="'+logoSrc+'" style="width:75%;height:75%;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))" alt="SAC"/>';
   h += '</div>';
   h += '</div>';
@@ -1586,8 +1580,8 @@ function renderTabellone(){
     
     var isFinalMatch = (stage==='final');
     var cardBg = isFinalMatch
-      ? 'background:linear-gradient(180deg,#1c1407 0%,#0a0808 100%);border:1px solid rgba(245,197,24,0.45);box-shadow:0 16px 48px rgba(245,197,24,0.15),0 4px 16px rgba(0,0,0,0.4),inset 0 1px 0 rgba(245,197,24,0.15)'
-      : 'background:linear-gradient(180deg,#141414 0%,#0a0a0a 100%);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,0.35),inset 0 1px 0 rgba(255,255,255,0.03)';
+      ? 'background:linear-gradient(180deg,rgba(245,197,24,0.08),var(--s2));border:1px solid rgba(245,197,24,0.4);box-shadow:0 8px 28px rgba(245,197,24,0.12),0 2px 10px rgba(0,0,0,0.3)'
+      : 'background:var(--s2);border:1px solid var(--border);box-shadow:0 4px 14px rgba(0,0,0,0.2)';
     
     // Card container
     h += '<div'+clickAttr+' style="position:relative;margin-bottom:8px;border-radius:14px;overflow:hidden;'+cardBg+';transition:all .2s;'+cursor+'">';
@@ -1596,14 +1590,14 @@ function renderTabellone(){
     h += '<div style="position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,'+(isFinalMatch?'var(--gold)':'rgba(255,255,255,0.12)')+',transparent)"></div>';
     
     // Header: numero match + status
-    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.3)">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border);background:var(--s1)">';
     
     // Numero partita stilizzato
     var matchNum = matches.length>1 ? String(idx+1).padStart(2,'0') : '';
     h += '<div style="display:flex;align-items:center;gap:6px">';
-    h += '<div style="width:18px;height:18px;border-radius:5px;background:'+(isFinalMatch?'linear-gradient(135deg,#c9a227,#8b6914)':'rgba(255,255,255,0.06)')+';display:flex;align-items:center;justify-content:center;font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:800;color:'+(isFinalMatch?'#000':'#a1a1aa')+'">'+sInfo.code+'</div>';
-    if(matchNum) h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#a1a1aa;font-weight:600;letter-spacing:0.1em">'+matchNum+'</div>';
-    h += '<div style="font-family:Inter,sans-serif;font-size:9px;color:#52525b;font-weight:600;letter-spacing:0.15em;text-transform:uppercase">'+sInfo.label+'</div>';
+    h += '<div style="width:18px;height:18px;border-radius:5px;background:'+(isFinalMatch?'linear-gradient(135deg,#c9a227,#8b6914)':'var(--s3)')+';display:flex;align-items:center;justify-content:center;font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:800;color:'+(isFinalMatch?'#000':'var(--muted)')+'">'+sInfo.code+'</div>';
+    if(matchNum) h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.1em">'+matchNum+'</div>';
+    h += '<div style="font-family:Inter,sans-serif;font-size:9px;color:var(--muted);font-weight:600;letter-spacing:0.15em;text-transform:uppercase">'+sInfo.label+'</div>';
     h += '</div>';
     
     // Status indicator (più piccolo)
@@ -1702,7 +1696,7 @@ function renderTabellone(){
     
     h += '<div style="position:absolute;inset:-14px;background:radial-gradient(ellipse at center,rgba(245,197,24,0.18),transparent 60%);pointer-events:none;filter:blur(14px)"></div>';
     
-    h += '<div style="position:relative;background:linear-gradient(180deg,#241a08 0%,#1a1207 30%,#0a0a0a 100%);border:1.5px solid rgba(245,197,24,0.5);border-radius:16px;padding:18px 14px;text-align:center;overflow:hidden;box-shadow:0 16px 40px rgba(245,197,24,0.2),inset 0 1px 0 rgba(245,197,24,0.25)">';
+    h += '<div style="position:relative;background:linear-gradient(180deg,rgba(245,197,24,0.12),var(--s2) 50%,var(--s1));border:1.5px solid rgba(245,197,24,0.5);border-radius:16px;padding:18px 14px;text-align:center;overflow:hidden;box-shadow:0 12px 32px rgba(245,197,24,0.2),inset 0 1px 0 rgba(245,197,24,0.25)">';
     
     h += '<div style="position:absolute;top:0;left:0;width:36px;height:36px;border-top:1.5px solid var(--gold);border-left:1.5px solid var(--gold);border-radius:14px 0 0 0;opacity:0.6"></div>';
     h += '<div style="position:absolute;top:0;right:0;width:36px;height:36px;border-top:1.5px solid var(--gold);border-right:1.5px solid var(--gold);border-radius:0 14px 0 0;opacity:0.6"></div>';
@@ -3650,54 +3644,87 @@ function _renderMarcatoreMarket(matchId, teamA, teamB, isF, selLbl){
   var totalScorers = Object.keys(scorersA).length + Object.keys(scorersB).length;
   
   if(totalScorers === 0){
-    return '<div style="margin-top:14px;padding:12px;background:rgba(255,255,255,0.02);border:1px dashed var(--border);border-radius:10px;text-align:center;font-size:11px;color:var(--muted)">⚽ Marcatore: nessun giocatore ha ancora segnato nei gironi</div>';
+    return '<div style="margin-top:16px;padding:14px;background:rgba(255,255,255,0.02);border:1px dashed var(--border);border-radius:12px;text-align:center;font-size:11px;color:var(--muted)">⚽ Marcatore: nessun giocatore ha ancora segnato nei gironi</div>';
   }
   
-  var level = window._marcatoreLevel[matchId] || '1+';
-  
   var h = '';
-  h += '<div class="pro-mkt-lbl" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">';
-  h += '<span>⚽ Marcatore della partita</span>';
-  h += '<div style="display:flex;gap:4px">';
+  
+  // BANNER GRANDE EVIDENTE
+  h += '<div style="margin-top:18px;padding:12px 14px;background:linear-gradient(135deg,rgba(245,197,24,0.18),rgba(245,197,24,0.05));border:1px solid rgba(245,197,24,0.45);border-radius:12px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(245,197,24,0.1)">';
+  h += '<div style="font-size:24px;line-height:1">⚽</div>';
+  h += '<div style="flex:1">';
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:14px;font-weight:800;color:var(--gold);letter-spacing:-0.01em;line-height:1.1">MARCATORE DELLA PARTITA</div>';
+  h += '<div style="font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:0.05em">Scommetti su chi farà gol</div>';
+  h += '</div>';
+  h += '</div>';
+  
+  // Legenda piccola
+  h += '<div style="display:flex;align-items:center;justify-content:flex-end;gap:14px;margin:10px 4px 6px">';
+  h += '<span style="font-size:9px;color:var(--muted);letter-spacing:1px;font-weight:600">QUOTA PER GOL:</span>';
   ['1+','2+','3+'].forEach(function(lv){
-    var active = level===lv;
-    var style = active 
-      ? 'background:var(--gold);color:#000;border:1px solid var(--gold)'
-      : 'background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border)';
-    h += '<button onclick="event.stopPropagation();_setMarcatoreLevel(\''+matchId+'\',\''+lv+'\')" style="padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;'+style+'">'+lv+' gol</button>';
+    h += '<div style="display:flex;align-items:center;gap:4px">';
+    h += '<div style="font-family:Inter,sans-serif;font-size:10px;font-weight:800;color:var(--gold);background:rgba(245,197,24,0.12);padding:2px 6px;border-radius:5px;letter-spacing:0.5px">'+lv+'</div>';
+    h += '</div>';
   });
-  h += '</div></div>';
+  h += '</div>';
   
   function _renderTeamScorers(teamName, scorers){
     var keys = Object.keys(scorers).sort(function(a,b){return scorers[b]-scorers[a];});
     if(keys.length === 0) return '';
-    var hh = '<div style="font-size:10px;color:var(--text);font-weight:700;padding:8px 0 4px;letter-spacing:1px">'+_esc(teamName.toUpperCase())+'</div>';
+    // Estraggo bandiera dal nome squadra
+    var splitT = _splitTeamFlag(teamName);
+    var hh = '<div style="font-size:11px;color:var(--text);font-weight:700;padding:10px 0 6px;letter-spacing:0.5px;display:flex;align-items:center;gap:6px">';
+    if(splitT.flag) hh += '<span style="font-size:14px">'+splitT.flag+'</span>';
+    hh += '<span>'+_esc((splitT.name||teamName).toUpperCase())+'</span>';
+    hh += '</div>';
+    
     keys.forEach(function(name){
       var goals = scorers[name];
-      var odds = _calcScorerOdds(goals, level);
-      var label = name+' '+level;
-      var isSel = selLbl===label;
       var initials = name.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2);
-      var crown = (goals>=5) ? '<span style="color:var(--gold);font-size:10px">👑</span> ' : '';
-      var nameE = name.replace(/'/g,"\\'");
+      var crown = (goals>=5) ? '<span style="color:var(--gold);font-size:11px">👑</span> ' : '';
       
-      hh += '<div onclick="event.stopPropagation();proSelect(\''+matchId+'\',\'marcatore_'+level+'\',\''+(label.replace(/'/g,"\\'"))+'\','+odds+')" style="display:flex;align-items:center;gap:10px;background:'+(isSel?'rgba(245,197,24,0.15)':'rgba(255,255,255,0.03)')+';border:1px solid '+(isSel?'var(--gold)':'var(--border)')+';border-radius:10px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s">';
-      hh += '<div style="width:30px;height:30px;border-radius:50%;background:rgba(245,197,24,0.15);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0">'+_esc(initials)+'</div>';
+      // Riga giocatore
+      hh += '<div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:6px">';
+      
+      // Info giocatore
+      hh += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+      hh += '<div style="width:32px;height:32px;border-radius:50%;background:rgba(245,197,24,0.15);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0;border:1px solid rgba(245,197,24,0.25)">'+_esc(initials)+'</div>';
       hh += '<div style="flex:1;min-width:0">';
-      hh += '<div style="font-size:12px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+crown+_esc(name)+'</div>';
-      hh += '<div style="font-size:10px;color:var(--muted);margin-top:1px">⚽ '+goals+' gol nei gironi</div>';
+      hh += '<div style="font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2">'+crown+_esc(name)+'</div>';
+      hh += '<div style="font-size:10px;color:var(--muted);margin-top:1px">⚽ '+goals+' gol fatti nei gironi</div>';
       hh += '</div>';
-      hh += '<div style="font-family:Manrope,Anton,sans-serif;font-size:16px;font-weight:800;color:var(--gold);flex-shrink:0">'+odds+'</div>';
       hh += '</div>';
+      
+      // 3 BOTTONI QUOTA (1+, 2+, 3+) AFFIANCATI
+      hh += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">';
+      ['1+','2+','3+'].forEach(function(lv){
+        var odds = _calcScorerOdds(goals, lv);
+        var label = name+' '+lv;
+        var isSel = selLbl===label;
+        var btnBg = isSel 
+          ? 'background:var(--gold);color:#000;border:1px solid var(--gold)'
+          : 'background:rgba(0,0,0,0.3);border:1px solid var(--border)';
+        var lvColor = isSel ? '#000' : 'var(--muted)';
+        var oddsColor = isSel ? '#000' : 'var(--gold)';
+        var labelE = label.replace(/'/g,"\\'");
+        
+        hh += '<div onclick="event.stopPropagation();proSelect(\''+matchId+'\',\'marcatore_'+lv+'\',\''+labelE+'\','+odds+')" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;border-radius:8px;cursor:pointer;transition:all .15s;'+btnBg+'">';
+        hh += '<div style="font-family:Inter,sans-serif;font-size:9px;letter-spacing:0.5px;font-weight:700;color:'+lvColor+';margin-bottom:2px">'+lv+' GOL</div>';
+        hh += '<div style="font-family:Manrope,Anton,sans-serif;font-size:16px;font-weight:800;color:'+oddsColor+';line-height:1">'+odds+'</div>';
+        hh += '</div>';
+      });
+      hh += '</div>';
+      
+      hh += '</div>'; // end riga giocatore
     });
     return hh;
   }
   
-  h += '<div style="margin-top:8px">';
+  h += '<div style="margin-top:4px">';
   h += _renderTeamScorers(teamA, scorersA);
   h += _renderTeamScorers(teamB, scorersB);
   h += '</div>';
-  h += '<div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center;font-style:italic">Quote statistiche · solo marcatori dei gironi</div>';
+  h += '<div style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center;font-style:italic">Quote statistiche · solo marcatori dei gironi</div>';
   
   return h;
 }
