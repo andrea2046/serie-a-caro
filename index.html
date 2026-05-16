@@ -3429,19 +3429,25 @@ function _setMarcatoreLevel(matchId, level){
 function _getScorersForTeam(teamName, isF){
   var ml = isF ? matchesF : matches;
   var scorers = {}; // name -> goals
+  // Normalizza per il confronto (case-insensitive, trim)
+  var target = String(teamName||'').trim().toLowerCase();
   ml.forEach(function(m){
     if(!m.played) return;
-    if(m.a === teamName && Array.isArray(m.scorersA)){
+    var ma = String(m.a||'').trim().toLowerCase();
+    var mb = String(m.b||'').trim().toLowerCase();
+    if(ma === target && Array.isArray(m.scorersA)){
       m.scorersA.forEach(function(s){
-        var n = s.name || s;
+        var n = (typeof s==='object') ? s.name : s;
         var g = (typeof s==='object') ? (s.goals||1) : 1;
+        if(!n) return;
         scorers[n] = (scorers[n]||0) + g;
       });
     }
-    if(m.b === teamName && Array.isArray(m.scorersB)){
+    if(mb === target && Array.isArray(m.scorersB)){
       m.scorersB.forEach(function(s){
-        var n = s.name || s;
+        var n = (typeof s==='object') ? s.name : s;
         var g = (typeof s==='object') ? (s.goals||1) : 1;
+        if(!n) return;
         scorers[n] = (scorers[n]||0) + g;
       });
     }
