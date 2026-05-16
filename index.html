@@ -3644,87 +3644,54 @@ function _renderMarcatoreMarket(matchId, teamA, teamB, isF, selLbl){
   var totalScorers = Object.keys(scorersA).length + Object.keys(scorersB).length;
   
   if(totalScorers === 0){
-    return '<div style="margin-top:16px;padding:14px;background:rgba(255,255,255,0.02);border:1px dashed var(--border);border-radius:12px;text-align:center;font-size:11px;color:var(--muted)">⚽ Marcatore: nessun giocatore ha ancora segnato nei gironi</div>';
+    return '<div style="margin-top:14px;padding:12px;background:rgba(255,255,255,0.02);border:1px dashed var(--border);border-radius:10px;text-align:center;font-size:11px;color:var(--muted)">⚽ Marcatore: nessun giocatore ha ancora segnato nei gironi</div>';
   }
   
+  var level = window._marcatoreLevel[matchId] || '1+';
+  
   var h = '';
-  
-  // BANNER GRANDE EVIDENTE
-  h += '<div style="margin-top:18px;padding:12px 14px;background:linear-gradient(135deg,rgba(245,197,24,0.18),rgba(245,197,24,0.05));border:1px solid rgba(245,197,24,0.45);border-radius:12px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(245,197,24,0.1)">';
-  h += '<div style="font-size:24px;line-height:1">⚽</div>';
-  h += '<div style="flex:1">';
-  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:14px;font-weight:800;color:var(--gold);letter-spacing:-0.01em;line-height:1.1">MARCATORE DELLA PARTITA</div>';
-  h += '<div style="font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:0.05em">Scommetti su chi farà gol</div>';
-  h += '</div>';
-  h += '</div>';
-  
-  // Legenda piccola
-  h += '<div style="display:flex;align-items:center;justify-content:flex-end;gap:14px;margin:10px 4px 6px">';
-  h += '<span style="font-size:9px;color:var(--muted);letter-spacing:1px;font-weight:600">QUOTA PER GOL:</span>';
+  h += '<div class="pro-mkt-lbl" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">';
+  h += '<span>⚽ Marcatore della partita</span>';
+  h += '<div style="display:flex;gap:4px">';
   ['1+','2+','3+'].forEach(function(lv){
-    h += '<div style="display:flex;align-items:center;gap:4px">';
-    h += '<div style="font-family:Inter,sans-serif;font-size:10px;font-weight:800;color:var(--gold);background:rgba(245,197,24,0.12);padding:2px 6px;border-radius:5px;letter-spacing:0.5px">'+lv+'</div>';
-    h += '</div>';
+    var active = level===lv;
+    var style = active 
+      ? 'background:var(--gold);color:#000;border:1px solid var(--gold)'
+      : 'background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border)';
+    h += '<button onclick="event.stopPropagation();_setMarcatoreLevel(\''+matchId+'\',\''+lv+'\')" style="padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;'+style+'">'+lv+' gol</button>';
   });
-  h += '</div>';
+  h += '</div></div>';
   
   function _renderTeamScorers(teamName, scorers){
     var keys = Object.keys(scorers).sort(function(a,b){return scorers[b]-scorers[a];});
     if(keys.length === 0) return '';
-    // Estraggo bandiera dal nome squadra
-    var splitT = _splitTeamFlag(teamName);
-    var hh = '<div style="font-size:11px;color:var(--text);font-weight:700;padding:10px 0 6px;letter-spacing:0.5px;display:flex;align-items:center;gap:6px">';
-    if(splitT.flag) hh += '<span style="font-size:14px">'+splitT.flag+'</span>';
-    hh += '<span>'+_esc((splitT.name||teamName).toUpperCase())+'</span>';
-    hh += '</div>';
-    
+    var hh = '<div style="font-size:10px;color:var(--text);font-weight:700;padding:8px 0 4px;letter-spacing:1px">'+_esc(teamName.toUpperCase())+'</div>';
     keys.forEach(function(name){
       var goals = scorers[name];
+      var odds = _calcScorerOdds(goals, level);
+      var label = name+' '+level;
+      var isSel = selLbl===label;
       var initials = name.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2);
-      var crown = (goals>=5) ? '<span style="color:var(--gold);font-size:11px">👑</span> ' : '';
+      var crown = (goals>=5) ? '<span style="color:var(--gold);font-size:10px">👑</span> ' : '';
+      var nameE = name.replace(/'/g,"\\'");
       
-      // Riga giocatore
-      hh += '<div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:6px">';
-      
-      // Info giocatore
-      hh += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
-      hh += '<div style="width:32px;height:32px;border-radius:50%;background:rgba(245,197,24,0.15);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0;border:1px solid rgba(245,197,24,0.25)">'+_esc(initials)+'</div>';
+      hh += '<div onclick="event.stopPropagation();proSelect(\''+matchId+'\',\'marcatore_'+level+'\',\''+(label.replace(/'/g,"\\'"))+'\','+odds+')" style="display:flex;align-items:center;gap:10px;background:'+(isSel?'rgba(245,197,24,0.15)':'rgba(255,255,255,0.03)')+';border:1px solid '+(isSel?'var(--gold)':'var(--border)')+';border-radius:10px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s">';
+      hh += '<div style="width:30px;height:30px;border-radius:50%;background:rgba(245,197,24,0.15);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0">'+_esc(initials)+'</div>';
       hh += '<div style="flex:1;min-width:0">';
-      hh += '<div style="font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2">'+crown+_esc(name)+'</div>';
-      hh += '<div style="font-size:10px;color:var(--muted);margin-top:1px">⚽ '+goals+' gol fatti nei gironi</div>';
+      hh += '<div style="font-size:12px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+crown+_esc(name)+'</div>';
+      hh += '<div style="font-size:10px;color:var(--muted);margin-top:1px">⚽ '+goals+' gol nei gironi</div>';
       hh += '</div>';
+      hh += '<div style="font-family:Manrope,Anton,sans-serif;font-size:16px;font-weight:800;color:var(--gold);flex-shrink:0">'+odds+'</div>';
       hh += '</div>';
-      
-      // 3 BOTTONI QUOTA (1+, 2+, 3+) AFFIANCATI
-      hh += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">';
-      ['1+','2+','3+'].forEach(function(lv){
-        var odds = _calcScorerOdds(goals, lv);
-        var label = name+' '+lv;
-        var isSel = selLbl===label;
-        var btnBg = isSel 
-          ? 'background:var(--gold);color:#000;border:1px solid var(--gold)'
-          : 'background:rgba(0,0,0,0.3);border:1px solid var(--border)';
-        var lvColor = isSel ? '#000' : 'var(--muted)';
-        var oddsColor = isSel ? '#000' : 'var(--gold)';
-        var labelE = label.replace(/'/g,"\\'");
-        
-        hh += '<div onclick="event.stopPropagation();proSelect(\''+matchId+'\',\'marcatore_'+lv+'\',\''+labelE+'\','+odds+')" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;border-radius:8px;cursor:pointer;transition:all .15s;'+btnBg+'">';
-        hh += '<div style="font-family:Inter,sans-serif;font-size:9px;letter-spacing:0.5px;font-weight:700;color:'+lvColor+';margin-bottom:2px">'+lv+' GOL</div>';
-        hh += '<div style="font-family:Manrope,Anton,sans-serif;font-size:16px;font-weight:800;color:'+oddsColor+';line-height:1">'+odds+'</div>';
-        hh += '</div>';
-      });
-      hh += '</div>';
-      
-      hh += '</div>'; // end riga giocatore
     });
     return hh;
   }
   
-  h += '<div style="margin-top:4px">';
+  h += '<div style="margin-top:8px">';
   h += _renderTeamScorers(teamA, scorersA);
   h += _renderTeamScorers(teamB, scorersB);
   h += '</div>';
-  h += '<div style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center;font-style:italic">Quote statistiche · solo marcatori dei gironi</div>';
+  h += '<div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center;font-style:italic">Quote statistiche · solo marcatori dei gironi</div>';
   
   return h;
 }
@@ -4820,6 +4787,55 @@ function renderPronostici(){
           h+='<div class="pro-qb'+(_selLbl==='2'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'2\','+_q.q2+')"><span class="pro-qb-l">2</span><span class="pro-qb-v">'+_q.q2+'</span></div>';
         }
         h+='</div></div>';
+        
+        // ANTEPRIMA MARCATORI (solo per partite del tabellone, visibile sempre)
+        if(_isBracket){
+          var _previewA = _getScorersForTeam(_m.a, _isF);
+          var _previewB = _getScorersForTeam(_m.b, _isF);
+          var _allPrev = [];
+          Object.keys(_previewA).forEach(function(n){ _allPrev.push({name:n, goals:_previewA[n]}); });
+          Object.keys(_previewB).forEach(function(n){ _allPrev.push({name:n, goals:_previewB[n]}); });
+          _allPrev.sort(function(a,b){return b.goals-a.goals;});
+          if(_allPrev.length > 0){
+            var _top = _allPrev[0];
+            var _topOdds = _calcScorerOdds(_top.goals, '1+');
+            var _topInitials = _top.name.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2);
+            var _topLabel = _top.name + ' 1+';
+            var _topIsSel = _selLbl===_topLabel;
+            var _topLabelE = _topLabel.replace(/'/g,"\\'");
+            var _crown = (_top.goals>=5) ? '👑 ' : '';
+            
+            h += '<div style="margin:10px -2px 0;padding:10px;background:linear-gradient(135deg,rgba(245,197,24,0.1),rgba(245,197,24,0.02));border:1px solid rgba(245,197,24,0.3);border-radius:10px;position:relative">';
+            
+            // Label novità
+            h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">';
+            h += '<span style="font-size:14px">⚽</span>';
+            h += '<span style="font-family:Inter,sans-serif;font-size:10px;font-weight:800;color:var(--gold);letter-spacing:1px">MARCATORI</span>';
+            h += '<span style="flex:1;height:1px;background:rgba(245,197,24,0.2)"></span>';
+            h += '<span style="font-size:9px;color:var(--muted);font-weight:600">'+(_allPrev.length)+' giocator'+(_allPrev.length===1?'e':'i')+'</span>';
+            h += '</div>';
+            
+            // Riga top marcatore (cliccabile per scommettere subito)
+            h += '<div onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'marcatore_1+\',\''+_topLabelE+'\','+_topOdds+')" style="display:flex;align-items:center;gap:10px;background:'+(_topIsSel?'rgba(245,197,24,0.2)':'rgba(0,0,0,0.25)')+';border:1px solid '+(_topIsSel?'var(--gold)':'var(--border)')+';border-radius:8px;padding:7px 10px;cursor:pointer;margin-bottom:6px">';
+            h += '<div style="width:28px;height:28px;border-radius:50%;background:rgba(245,197,24,0.15);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;font-size:10px;font-weight:700;color:var(--gold);flex-shrink:0">'+_esc(_topInitials)+'</div>';
+            h += '<div style="flex:1;min-width:0">';
+            h += '<div style="font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.1">'+_crown+_esc(_top.name)+'</div>';
+            h += '<div style="font-size:9px;color:var(--muted);margin-top:1px">Segna 1+ gol</div>';
+            h += '</div>';
+            h += '<div style="display:flex;flex-direction:column;align-items:center;background:'+(_topIsSel?'#000':'rgba(245,197,24,0.1)')+';border:1px solid '+(_topIsSel?'var(--gold)':'transparent')+';padding:4px 10px;border-radius:7px;flex-shrink:0">';
+            h += '<div style="font-size:8px;font-weight:700;color:'+(_topIsSel?'var(--gold)':'var(--muted)')+';letter-spacing:0.5px">QUOTA</div>';
+            h += '<div style="font-family:Manrope,Anton,sans-serif;font-size:15px;font-weight:800;color:var(--gold);line-height:1">'+_topOdds+'</div>';
+            h += '</div>';
+            h += '</div>';
+            
+            // Pulsante "vedi tutti"
+            if(_allPrev.length > 1){
+              h += '<div onclick="event.stopPropagation();proToggleDetail(\''+_mid+'\')" style="text-align:center;font-size:10px;color:var(--gold);font-weight:700;cursor:pointer;padding:4px;letter-spacing:0.5px">+ '+(_allPrev.length-1)+' altr'+((_allPrev.length-1)===1?'o marcatore':'i marcatori')+' '+(_open?'▴':'▾')+'</div>';
+            }
+            
+            h += '</div>';
+          }
+        }
         if(_open){
           var _aE=_m.a.replace(/'/g,"\\'"),_bE=_m.b.replace(/'/g,"\\'");
           h+='<div class="pro-detail open">';
