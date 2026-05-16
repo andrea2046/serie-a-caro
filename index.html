@@ -1388,11 +1388,11 @@ window._activeStage = 'qf'; // 'qf' | 'sf' | 'final'
 // ════════════════════════════════════════
 window._INITIAL_BRACKET = {
   M: {
-    // QUARTI MASCHILI
-    qf1: {a:'5CC', b:'4DE(2)', ga:null, gb:null},
-    qf2: {a:'4CS', b:'2EE',    ga:null, gb:null},
-    qf3: {a:'5DE', b:'5AC',    ga:null, gb:null},
-    qf4: {a:'4DE(1)', b:'3DE', ga:null, gb:null},
+    // QUARTI MASCHILI (nomi identici a quelli dei gironi per matching marcatori)
+    qf1: {a:'🇧🇷 5CC',     b:'🇭🇷 4DE (2)', ga:null, gb:null},
+    qf2: {a:'🇳🇱 4CS',     b:'🇵🇦 2EE',     ga:null, gb:null},
+    qf3: {a:'🇦🇷 5DE',     b:'🇵🇹 5AC',     ga:null, gb:null},
+    qf4: {a:'🇮🇹 4DE (1)', b:'🇳🇴 3DE',     ga:null, gb:null},
     // Semifinali e finale: vincitori auto-avanzati
     sf1: {a:'', b:'', ga:null, gb:null},
     sf2: {a:'', b:'', ga:null, gb:null},
@@ -1400,10 +1400,10 @@ window._INITIAL_BRACKET = {
   },
   F: {
     // QUARTI FEMMINILI
-    qf1: {a:'4AC', b:'5AS', ga:null, gb:null},
-    qf2: {a:'2CS', b:'5BC', ga:null, gb:null},
-    qf3: {a:'5AC', b:'4BC', ga:null, gb:null},
-    qf4: {a:'3BS', b:'3ES', ga:null, gb:null},
+    qf1: {a:'🇫🇷 4AC', b:'🇦🇺 5AS', ga:null, gb:null},
+    qf2: {a:'🇨🇦 2CS', b:'🇩🇪 5BC', ga:null, gb:null},
+    qf3: {a:'🇵🇹 5AC', b:'🇺🇾 4BC', ga:null, gb:null},
+    qf4: {a:'🇰🇷 3BS', b:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 3ES', ga:null, gb:null},
     sf1: {a:'', b:'', ga:null, gb:null},
     sf2: {a:'', b:'', ga:null, gb:null},
     final: {a:'', b:'', ga:null, gb:null}
@@ -1419,12 +1419,30 @@ function _setStage(s){
   renderTabellone();
 }
 
-// Estrae le iniziali per il monogramma squadra
+// Estrae bandiera + nome separati
+// Esempio: "🇮🇹 4DE (1)" → {flag: "🇮🇹", name: "4DE (1)"}
+function _splitTeamFlag(fullName){
+  if(!fullName) return {flag:'', name:'?'};
+  // Match: tutto fino al primo spazio = bandiera; resto = nome
+  // Le bandiere emoji possono essere lunghe (es. England con tag sequences)
+  var s = String(fullName).trim();
+  var spaceIdx = s.indexOf(' ');
+  if(spaceIdx === -1) return {flag:'', name:s};
+  return {
+    flag: s.substring(0, spaceIdx),
+    name: s.substring(spaceIdx+1).trim()
+  };
+}
+
 function _teamMark(name){
   if(!name || name==='?') return '?';
-  var parts = String(name).trim().split(/\s+/);
-  if(parts.length===1) return parts[0].substring(0,2).toUpperCase();
-  return (parts[0][0]+parts[1][0]).toUpperCase();
+  var parts = _splitTeamFlag(name);
+  // Se c'è bandiera, mostro solo quella (è già un "logo")
+  if(parts.flag) return parts.flag;
+  // Altrimenti iniziali
+  var words = String(name).trim().split(/\s+/);
+  if(words.length===1) return words[0].substring(0,2).toUpperCase();
+  return (words[0][0]+words[1][0]).toUpperCase();
 }
 
 function renderTabellone(){
@@ -1559,8 +1577,10 @@ function renderTabellone(){
     
     h += '<div style="display:flex;align-items:center;gap:14px;padding:8px 0;position:relative;'+teamAStyle+'">';
     if(winnerA) h += '<div style="position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:3px;height:60%;background:var(--gold);border-radius:2px;box-shadow:0 0 8px rgba(245,197,24,0.4)"></div>';
-    h += '<div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:Inter,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.02em;'+teamAMark+(!match.a?';border-style:dashed':'')+'">'+_esc(_teamMark(a))+'</div>';
-    h += '<div style="flex:1;font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:'+(match.a?'#f4f4f5':'#52525b')+';letter-spacing:-0.01em;'+(!match.a?'font-style:italic;font-weight:400':'')+'">'+(match.a ? _esc(a) : 'Da definire')+'</div>';
+    var splitA = _splitTeamFlag(a);
+    var flagFontA = splitA.flag ? 'font-size:22px' : 'font-size:11px;font-weight:800;letter-spacing:0.02em';
+    h += '<div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:Inter,sans-serif;'+flagFontA+';'+teamAMark+(!match.a?';border-style:dashed':'')+'">'+(splitA.flag || _teamMark(a))+'</div>';
+    h += '<div style="flex:1;font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:'+(match.a?'#f4f4f5':'#52525b')+';letter-spacing:-0.01em;'+(!match.a?'font-style:italic;font-weight:400':'')+'">'+(match.a ? _esc(splitA.name || a) : 'Da definire')+'</div>';
     h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.04em;font-variant-numeric:tabular-nums;min-width:24px;text-align:right;color:'+teamAScoreColor+'">'+(ga===null?'—':ga)+'</div>';
     h += '</div>';
     
@@ -1576,8 +1596,10 @@ function renderTabellone(){
     
     h += '<div style="display:flex;align-items:center;gap:14px;padding:8px 0;position:relative;'+teamBStyle+'">';
     if(winnerB) h += '<div style="position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:3px;height:60%;background:var(--gold);border-radius:2px;box-shadow:0 0 8px rgba(245,197,24,0.4)"></div>';
-    h += '<div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:Inter,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.02em;'+teamBMark+(!match.b?';border-style:dashed':'')+'">'+_esc(_teamMark(b))+'</div>';
-    h += '<div style="flex:1;font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:'+(match.b?'#f4f4f5':'#52525b')+';letter-spacing:-0.01em;'+(!match.b?'font-style:italic;font-weight:400':'')+'">'+(match.b ? _esc(b) : 'Da definire')+'</div>';
+    var splitB = _splitTeamFlag(b);
+    var flagFontB = splitB.flag ? 'font-size:22px' : 'font-size:11px;font-weight:800;letter-spacing:0.02em';
+    h += '<div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:Inter,sans-serif;'+flagFontB+';'+teamBMark+(!match.b?';border-style:dashed':'')+'">'+(splitB.flag || _teamMark(b))+'</div>';
+    h += '<div style="flex:1;font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:'+(match.b?'#f4f4f5':'#52525b')+';letter-spacing:-0.01em;'+(!match.b?'font-style:italic;font-weight:400':'')+'">'+(match.b ? _esc(splitB.name || b) : 'Da definire')+'</div>';
     h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.04em;font-variant-numeric:tabular-nums;min-width:24px;text-align:right;color:'+teamBScoreColor+'">'+(gb===null?'—':gb)+'</div>';
     h += '</div>';
     
@@ -1800,6 +1822,14 @@ async function _saveBracketMatch(league, matchKey){
     setSyncStatus('loading','Salvataggio tabellone...');
     await _fbRef.child('bracket').set(window._bracketData);
     setSyncStatus('ok','Tabellone aggiornato ✓');
+    
+    // Risoluzione automatica scommesse pendenti su partite del tabellone
+    if(typeof ga==='number' && typeof gb==='number'){
+      try {
+        _resolveBracketBets();
+      } catch(e){ console.error('Errore risoluzione scommesse:',e); }
+    }
+    
     showToast('✅ Salvato');
   } catch(e){
     setSyncStatus('err','Errore salvataggio');
@@ -1807,6 +1837,51 @@ async function _saveBracketMatch(league, matchKey){
   }
   document.getElementById('bracketEditPopup').remove();
   renderTabellone();
+}
+
+// Risoluzione scommesse pendenti su partite del tabellone (chiamata dopo aver inserito un risultato)
+function _resolveBracketBets(){
+  var all = getAllData();
+  var resolved = 0, winners = 0, paid = 0;
+  Object.entries(all).forEach(function(e){
+    var username = e[0], d = e[1];
+    if(!d.storia || !d.storia.length) return;
+    var changed = false;
+    d.storia.forEach(function(bet){
+      if(bet.status !== 'pending') return;
+      if(!bet.schedina || !bet.schedina.length) return;
+      // Verifica se almeno una selezione è del tabellone
+      var hasBracket = bet.schedina.some(function(b){
+        return typeof b.matchId==='string' && (b.matchId.indexOf('tab_')===0 || b.matchId.indexOf('tabF_')===0);
+      });
+      if(!hasBracket) return;
+      
+      var allSettled = true, anyLost = false;
+      bet.schedina.forEach(function(b){
+        var res = checkSel(b);
+        if(res === 'pending') allSettled = false;
+        if(res === 'lose') anyLost = true;
+      });
+      if(anyLost){
+        bet.status = 'lose';
+        changed = true; resolved++;
+      } else if(allSettled){
+        bet.status = 'win';
+        d.tokens = (d.tokens||0) + (bet.vincita||0);
+        paid += bet.vincita||0;
+        changed = true; resolved++; winners++;
+      }
+    });
+    if(changed) all[username] = d;
+  });
+  if(resolved > 0){
+    saveAllData(all);
+    if(winners > 0){
+      showToast('🏆 '+winners+' scommessa/e pagata/e! ('+paid+' 🪙 distribuiti)');
+    } else if(resolved > 0){
+      showToast('📋 '+resolved+' scommessa/e risolta/e');
+    }
+  }
 }
 
 async function _resetBracket(){
@@ -3960,6 +4035,67 @@ function resolveBets(matchId,g1,g2,mvpN,isF){
   if(resolved>0){saveAllData(all);if(winners>0) showToast('🏆 '+winners+' scommessa/e pagata/e!');}
 }
 function checkSel(b){
+  // ── PARTITE DEL TABELLONE ──
+  // matchId tipo "tab_qf1" (M) o "tabF_qf1" (F)
+  if(typeof b.matchId === 'string' && (b.matchId.indexOf('tab_')===0 || b.matchId.indexOf('tabF_')===0)){
+    var isFBracket = b.matchId.indexOf('tabF_')===0;
+    var bracketKey = isFBracket ? b.matchId.substring(5) : b.matchId.substring(4);
+    var bData = window._bracketData || {M:{},F:{}};
+    var leagueData = isFBracket ? (bData.F||{}) : (bData.M||{});
+    var bMatch = leagueData[bracketKey];
+    if(!bMatch || typeof bMatch.ga!=='number' || typeof bMatch.gb!=='number'){
+      return 'pending';
+    }
+    var bg1 = bMatch.ga, bg2 = bMatch.gb;
+    var lbl = b.label;
+    
+    // PASSAGGIO DEL TURNO
+    if(b.market === 'passturno'){
+      if(bg1 === bg2) return 'pending'; // pari → impossibile in eliminazione
+      if(lbl === 'Passa 1') return bg1 > bg2 ? 'win' : 'lose';
+      if(lbl === 'Passa 2') return bg2 > bg1 ? 'win' : 'lose';
+    }
+    
+    // OVER/UNDER 3.5
+    if(b.market === 'ou35'){
+      var t = bg1 + bg2;
+      return lbl.indexOf('Over')===0 ? (t>3?'win':'lose') : (t<=3?'win':'lose');
+    }
+    // OVER/UNDER 4.5
+    if(b.market === 'ou45'){
+      var t2 = bg1 + bg2;
+      return lbl.indexOf('Over')===0 ? (t2>4?'win':'lose') : (t2<=4?'win':'lose');
+    }
+    // BTTS
+    if(b.market === 'btts'){
+      var bttsYes = (bg1>0 && bg2>0);
+      if(b.label === 'No') return (!bttsYes)?'win':'lose';
+      return bttsYes ? 'win' : 'lose';
+    }
+    
+    // MARCATORE 1+/2+/3+
+    if(b.market && b.market.indexOf('marcatore_')===0){
+      // label è tipo "Nome Cognome 1+"
+      var requiredLevel = b.market.replace('marcatore_',''); // "1+", "2+", "3+"
+      var minGoals = parseInt(requiredLevel.replace('+',''));
+      // Estrai il nome del giocatore dalla label
+      // label = "Nome Cognome 1+", devo togliere " 1+" finale
+      var playerName = lbl.replace(/\s+\d+\+\s*$/,'').trim();
+      // Cerca il giocatore tra i marcatori salvati della partita
+      var allScorers = [].concat(bMatch.scorersA||[]).concat(bMatch.scorersB||[]);
+      var found = allScorers.find(function(s){
+        return s.name && s.name.trim().toLowerCase() === playerName.toLowerCase();
+      });
+      if(found){
+        return (found.goals >= minGoals) ? 'win' : 'lose';
+      }
+      return 'lose'; // non ha segnato
+    }
+    
+    return 'pending';
+  }
+  
+  // ── PARTITE DEI GIRONI (logica originale) ──
   var isF2=String(b.matchId).indexOf('f')===0;
   var realId=isF2?parseInt(String(b.matchId).replace('f','')):parseInt(b.matchId);
   var ml=isF2?matchesF:matches;var m=ml.find(function(x){return x.id===realId});
