@@ -4772,10 +4772,14 @@ function renderPronostici(){
         h+='<div class="pro-match-card">';
         // ── PARTITE DEL TABELLONE: layout speciale a 2 colonne ──
         if(_isBracket){
-          // Header: titolo squadre + sottotitolo + ▾
-          h+='<div onclick="proToggleDetail(\''+_mid+'\')" style="cursor:pointer;padding:8px 0 4px">';
+          // Header con pulsante "Vedi altro" in alto a destra
+          h+='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 0 4px">';
+          h+='<div onclick="proToggleDetail(\''+_mid+'\')" style="cursor:pointer;flex:1;min-width:0">';
           h+='<div class="pro-match-name">'+_esc(_m.a)+' <span style="color:var(--muted);font-size:10px">vs</span> '+_esc(_m.b)+'</div>';
-          h+='<div class="pro-match-sub" style="margin-top:4px"><span style="background:rgba(245,197,24,0.15);color:var(--gold);padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;letter-spacing:1px">🏆 '+_esc(_m._stageLabel.toUpperCase())+'</span>'+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+' <span style="color:var(--muted);margin-left:6px">'+(_open?'▴':'▾')+'</span></div>';
+          h+='<div class="pro-match-sub" style="margin-top:4px"><span style="background:rgba(245,197,24,0.15);color:var(--gold);padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;letter-spacing:1px">🏆 '+_esc(_m._stageLabel.toUpperCase())+'</span>'+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+'</div>';
+          h+='</div>';
+          // Pulsante Vedi altro
+          h+='<button onclick="event.stopPropagation();proToggleDetail(\''+_mid+'\')" style="background:'+(_open?'var(--gold)':'rgba(245,197,24,0.1)')+';border:1px solid var(--gold);color:'+(_open?'#000':'var(--gold)')+';padding:5px 9px;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:3px;white-space:nowrap;flex-shrink:0;letter-spacing:0.3px;font-family:Inter,sans-serif">'+(_open?'Chiudi':'Vedi altro')+' <span style="font-size:8px">'+(_open?'▴':'▾')+'</span></button>';
           h+='</div>';
           
           // CALCOLO MARCATORI per la preview
@@ -4829,10 +4833,10 @@ function renderPronostici(){
           h += '</div>'; // end grid 2 colonne
           
         } else {
-          // ── PARTITE DEI GIRONI: layout originale 1X2 ──
-          h+='<div class="pro-match-hd" onclick="proToggleDetail(\''+_mid+'\')"><div>';
+          // ── PARTITE DEI GIRONI: layout originale 1X2 con pulsante "Vedi altro" in alto a destra ──
+          h+='<div class="pro-match-hd"><div onclick="proToggleDetail(\''+_mid+'\')" style="cursor:pointer;flex:1;min-width:0">';
           h+='<div class="pro-match-name">'+_esc(_m.a)+' <span style="color:var(--muted);font-size:10px">vs</span> '+_esc(_m.b)+'</div>';
-          h+='<div class="pro-match-sub">Girone '+_m.group+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+' <span style="color:var(--muted)">'+(_open?'▴':'▾')+'</span></div>';
+          h+='<div class="pro-match-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px"><span>Girone '+_m.group+'</span>'+(_um.isF?' <span class="pro-f-badge">♀</span>':'')+'<button onclick="event.stopPropagation();proToggleDetail(\''+_mid+'\')" style="background:'+(_open?'var(--gold)':'rgba(245,197,24,0.1)')+';border:1px solid var(--gold);color:'+(_open?'#000':'var(--gold)')+';padding:3px 8px;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;letter-spacing:0.3px;font-family:Inter,sans-serif;margin-left:4px">'+(_open?'Chiudi':'Vedi altro')+' '+(_open?'▴':'▾')+'</button></div>';
           h+='</div><div class="pro-1x2">';
           h+='<div class="pro-qb'+(_selLbl==='1'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'1\','+_q.q1+')"><span class="pro-qb-l">1</span><span class="pro-qb-v">'+_q.q1+'</span></div>';
           h+='<div class="pro-qb'+(_selLbl==='X'?' sel':'')+'" onclick="event.stopPropagation();proSelect(\''+_mid+'\',\'1x2\',\'X\','+_q.qX+')"><span class="pro-qb-l">X</span><span class="pro-qb-v">'+_q.qX+'</span></div>';
