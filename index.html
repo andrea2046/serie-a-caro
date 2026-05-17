@@ -1068,7 +1068,7 @@ function renderTable() {
     })
     html+=`<div class="card"><div class="card-head"><div class="group-badge">${g}</div><div class="card-title">Girone ${g}</div></div>
     <table class="standings-table"><thead><tr><th>#</th><th>Squadra</th><th>PT</th><th>DR</th><th>GF</th><th>GS</th></tr></thead><tbody>
-    ${sorted.map((t,i)=>`<tr class="${i<2?'qual-row':''}"><td>${i+1}</td><td>${_esc(t)}</td><td>${table[t].pt|0}</td><td style="color:${table[t].dr>=0?'var(--text)':'var(--red)'}">${table[t].dr>0?'+':''}${table[t].dr|0}</td><td>${table[t].gf|0}</td><td>${table[t].gs|0}</td></tr>`).join("")}
+    ${sorted.map((t,i)=>`<tr class="${i<2?'qual-row':''}" onclick="showTeamInfo('${t.replace(/'/g,"\\'")}')" style="cursor:pointer"><td>${i+1}</td><td>${_esc(t)}</td><td>${table[t].pt|0}</td><td style="color:${table[t].dr>=0?'var(--text)':'var(--red)'}">${table[t].dr>0?'+':''}${table[t].dr|0}</td><td>${table[t].gf|0}</td><td>${table[t].gs|0}</td></tr>`).join("")}
     </tbody></table></div>`
   })
   classifica.innerHTML=html
@@ -1306,12 +1306,12 @@ function renderOggi(){
     var h='<div style="border-bottom:1px solid rgba(255,255,255,0.04)">';
     h+='<div class="oggi-match-row"'+clickAttr+' style="display:flex;align-items:center;gap:10px;padding:11px 14px;transition:background .15s'+cursorStyle+'">'
       +'<div style="width:6px;height:38px;background:'+color+';border-radius:3px;flex-shrink:0"></div>'
-      +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(m.a)+'</div></div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="event.stopPropagation();showTeamInfo(\''+m.a.replace(/'/g,"\\'")+'\')">'+_esc(m.a)+'</div></div>'
       +'<div style="display:flex;flex-direction:column;align-items:center;min-width:62px;padding:4px 8px;background:'+bg+';border:1px solid '+border+';border-radius:8px">'
       +'<div style="font-family:Anton,sans-serif;font-size:14px;color:'+color+';line-height:1">'+m.time+'</div>'
       +'<div style="font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:0.5px">GIR. '+m.group+'</div>'
       +'</div>'
-      +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(m.b)+'</div></div>'
+      +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="event.stopPropagation();showTeamInfo(\''+m.b.replace(/'/g,"\\'")+'\')">'+_esc(m.b)+'</div></div>'
       +'</div>';
     if(admin){
       if(m.locked){
@@ -1568,8 +1568,17 @@ function renderTabellone(){
     var winnerB = played && gb>ga;
     var bothEmpty = (!a && !b);
     
-    var clickAttr = admin ? (' onclick="_editBracketMatch(\''+(isF?'F':'M')+'\',\''+m.key+'\')"') : '';
-    var cursor = admin ? 'cursor:pointer' : 'cursor:default';
+    // Click: admin → edit; utente normale → view info se partita giocata
+    var virtMatchId = (isF?'tabF_':'tab_')+m.key;
+    var clickAttr;
+    if(admin){
+      clickAttr = ' onclick="_editBracketMatch(\''+(isF?'F':'M')+'\',\''+m.key+'\')"';
+    } else if(played){
+      clickAttr = ' onclick="showBracketMatchInfo(\''+virtMatchId+'\')"';
+    } else {
+      clickAttr = '';
+    }
+    var cursor = (admin || played) ? 'cursor:pointer' : 'cursor:default';
     
     var splitA = _splitTeamFlag(a);
     var splitB = _splitTeamFlag(b);
@@ -2211,7 +2220,9 @@ function renderScorers() {
       ? '<img src="'+_esc(playerImages[s.name])+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%" alt="">'
       : _esc(initials);
     
-    return '<div style="background:linear-gradient(180deg,var(--s2),#141414);border:1px solid var(--border);'+borderColor+';border-radius:16px;padding:12px;margin-bottom:8px;position:relative;overflow:hidden">' +
+    var nameE = s.name.replace(/'/g,"\\'");
+    
+    return '<div onclick="showPlayerInfo(\''+nameE+'\')" style="background:linear-gradient(180deg,var(--s2),#141414);border:1px solid var(--border);'+borderColor+';border-radius:16px;padding:12px;margin-bottom:8px;position:relative;overflow:hidden;cursor:pointer;transition:transform .15s">' +
       crown +
       '<div style="display:flex;align-items:center;gap:12px;position:relative;z-index:2">' +
         '<div style="flex-shrink:0;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Manrope,Anton,sans-serif;font-size:20px;font-weight:800;letter-spacing:1px;'+rankBg+';'+rankColor+'">'+(i+1)+'</div>' +
@@ -2223,6 +2234,7 @@ function renderScorers() {
             (mvps ? '<span style="font-size:10px;padding:3px 8px;border-radius:7px;background:rgba(0,214,143,0.12);color:#00d68f;font-weight:600;display:inline-flex;align-items:center;gap:3px">⭐ '+(mvps|0)+' MVP</span>' : '') +
           '</div>' +
         '</div>' +
+        '<div style="color:var(--muted);font-size:16px;margin-left:6px">›</div>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -2459,6 +2471,445 @@ function showToast(msg,type="ok") {
   toast.textContent=msg; toast.className="toast "+type; toast.style.display="block"
   requestAnimationFrame(()=>toast.classList.add("show"))
   setTimeout(()=>{toast.classList.remove("show");setTimeout(()=>toast.style.display="none",280)},2400)
+}
+
+// ════════════════════════════════════════
+// POPUP INFO: squadra / giocatore / partita
+// ════════════════════════════════════════
+
+function _closeInfoPopup(){
+  var p = document.getElementById('infoPopup');
+  if(p) p.remove();
+}
+
+function _openInfoPopup(innerHtml){
+  _closeInfoPopup();
+  var div = document.createElement('div');
+  div.id = 'infoPopup';
+  div.onclick = function(e){ if(e.target===div) _closeInfoPopup(); };
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99998;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:popupFadeIn 0.25s ease-out';
+  // Su mobile: bottom sheet style. Su desktop: centrato
+  div.innerHTML = 
+    '<style>'+
+    '@keyframes popupFadeIn{from{opacity:0}to{opacity:1}}'+
+    '@keyframes popupSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}'+
+    '@media (min-width:600px){#infoPopup{align-items:center!important}#infoPopupCard{border-radius:20px!important;max-height:80vh!important;margin:0!important}}'+
+    '</style>'+
+    '<div id="infoPopupCard" style="background:var(--s1);border:1px solid var(--border);border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;animation:popupSlideUp 0.3s ease-out;position:relative;box-shadow:0 -8px 40px rgba(0,0,0,0.6)">'+
+      // Handle bar (mobile sheet)
+      '<div style="position:sticky;top:0;background:var(--s1);padding:8px 0 0;z-index:5">'+
+        '<div style="width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 4px"></div>'+
+        '<button onclick="_closeInfoPopup()" style="position:absolute;top:8px;right:14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:18px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
+      '</div>'+
+      '<div style="padding:14px 16px 22px">'+innerHtml+'</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
+// Popup INFO SQUADRA: ultime partite della squadra
+function showTeamInfo(teamName){
+  if(!teamName) return;
+  var splitT = _splitTeamFlag(teamName);
+  var flag = splitT.flag || '';
+  var name = splitT.name || teamName;
+  
+  // Determina se maschile o femminile cercando nei gironi
+  var isF = false;
+  var foundInM = matches.some(function(m){return m.a===teamName || m.b===teamName;});
+  if(!foundInM){
+    var foundInF = matchesF.some(function(m){return m.a===teamName || m.b===teamName;});
+    if(foundInF) isF = true;
+  }
+  
+  // Trova tutte le partite della squadra (gironi + tabellone)
+  var ml = isF ? matchesF : matches;
+  var teamMatches = ml.filter(function(m){return m.a===teamName || m.b===teamName;}).slice().reverse(); // più recenti prima
+  
+  // Trova anche le partite del tabellone
+  var bData = window._bracketData || {M:{},F:{}};
+  var bLeagueData = isF ? (bData.F||{}) : (bData.M||{});
+  var bracketMatches = [];
+  Object.keys(bLeagueData).forEach(function(k){
+    var bm = bLeagueData[k];
+    if(bm && (bm.a===teamName || bm.b===teamName)){
+      var labelMap = {qf1:'QF 1',qf2:'QF 2',qf3:'QF 3',qf4:'QF 4',sf1:'Semifinale 1',sf2:'Semifinale 2',final:'Finale'};
+      bracketMatches.push({
+        a: bm.a, b: bm.b,
+        g1: bm.ga, g2: bm.gb,
+        played: typeof bm.ga==='number' && typeof bm.gb==='number',
+        date: '',
+        time: '',
+        group: labelMap[k] || k,
+        _isBracket: true,
+        scorersA: bm.scorersA, scorersB: bm.scorersB, mvp: bm.mvp
+      });
+    }
+  });
+  
+  // Calcola stats
+  var played = teamMatches.filter(function(m){return m.played});
+  var wins=0, draws=0, losses=0, gf=0, gs=0;
+  played.forEach(function(m){
+    var isHome = m.a===teamName;
+    var myGoals = isHome ? m.g1 : m.g2;
+    var oppGoals = isHome ? m.g2 : m.g1;
+    gf += myGoals; gs += oppGoals;
+    if(myGoals>oppGoals) wins++;
+    else if(myGoals===oppGoals) draws++;
+    else losses++;
+  });
+  
+  var h = '';
+  // Header squadra
+  h += '<div style="text-align:center;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">';
+  if(flag) h += '<div style="font-size:48px;line-height:1;margin-bottom:8px">'+flag+'</div>';
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:24px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1">'+_esc(name)+'</div>';
+  h += '<div style="font-family:Inter,sans-serif;font-size:10px;letter-spacing:0.2em;color:var(--muted);font-weight:600;margin-top:4px;text-transform:uppercase">'+(isF?'♀ Femminile':'♂ Maschile')+'</div>';
+  h += '</div>';
+  
+  // Stats blocco
+  if(played.length > 0){
+    h += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px">';
+    var statBox = function(val, label, color){
+      return '<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:8px 4px;text-align:center">'+
+        '<div style="font-family:Anton,Manrope,sans-serif;font-size:18px;color:'+color+';line-height:1">'+val+'</div>'+
+        '<div style="font-size:9px;color:var(--muted);font-weight:600;letter-spacing:0.5px;margin-top:3px;text-transform:uppercase">'+label+'</div>'+
+        '</div>';
+    };
+    h += statBox(played.length, 'Giocate', 'var(--text)');
+    h += statBox(wins, 'Vinte', 'var(--green)');
+    h += statBox(draws, 'Pari', 'var(--gold)');
+    h += statBox(losses, 'Perse', 'var(--red)');
+    h += statBox(gf+':'+gs, 'GF:GS', 'var(--text)');
+    h += '</div>';
+  }
+  
+  // Tabellone (se ci sono partite della fase finale)
+  if(bracketMatches.length > 0){
+    h += '<div style="font-size:11px;font-weight:800;color:var(--gold);letter-spacing:0.18em;margin-bottom:8px;text-transform:uppercase">🏆 Fase Finale</div>';
+    bracketMatches.forEach(function(m){
+      h += _renderMatchRow(m, teamName);
+    });
+    h += '<div style="height:14px"></div>';
+  }
+  
+  // Gironi - partite giocate
+  if(played.length > 0){
+    h += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.18em;margin-bottom:8px;text-transform:uppercase">📋 Partite Giocate</div>';
+    played.forEach(function(m){
+      h += _renderMatchRow(m, teamName);
+    });
+  }
+  
+  // Prossime partite
+  var upcoming = teamMatches.filter(function(m){return !m.played});
+  if(upcoming.length > 0){
+    h += '<div style="height:14px"></div>';
+    h += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.18em;margin-bottom:8px;text-transform:uppercase">📅 Prossime</div>';
+    upcoming.forEach(function(m){
+      h += _renderMatchRow(m, teamName);
+    });
+  }
+  
+  if(played.length===0 && upcoming.length===0 && bracketMatches.length===0){
+    h += '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Nessuna partita trovata per questa squadra</div>';
+  }
+  
+  _openInfoPopup(h);
+}
+
+// Helper: renderizza una riga partita dentro al popup squadra/giocatore
+function _renderMatchRow(m, focusTeam){
+  var isHome = m.a===focusTeam;
+  var ga = isHome ? m.g1 : m.g2;
+  var gb = isHome ? m.g2 : m.g1;
+  var opp = isHome ? m.b : m.a;
+  var splitOpp = _splitTeamFlag(opp);
+  var oppFlag = splitOpp.flag || '';
+  var oppName = splitOpp.name || opp;
+  
+  var resultColor = 'var(--muted)';
+  var resultLabel = '';
+  if(m.played){
+    if(ga>gb){ resultColor='var(--green)'; resultLabel='V'; }
+    else if(ga===gb){ resultColor='var(--gold)'; resultLabel='P'; }
+    else { resultColor='var(--red)'; resultLabel='S'; }
+  }
+  
+  var dateLabel = '';
+  if(m.played){
+    dateLabel = m.date ? _fmtDate(m.date) : '';
+  } else {
+    dateLabel = m.date ? (_fmtDate(m.date)+(m.time?' · '+m.time:'')) : 'Data da definire';
+  }
+  
+  var groupLabel = m._isBracket ? '🏆 '+(m.group||'Tabellone') : ('Girone '+m.group);
+  
+  var clickAttr = (m.played && m._isBracket) ? ' onclick="showBracketMatchInfo(\''+(window._currentBracketKey||'')+'\')"' : '';
+  
+  var h = '<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">';
+  // Result badge V/P/S
+  if(m.played){
+    h += '<div style="width:24px;height:24px;border-radius:7px;background:'+resultColor+'15;border:1px solid '+resultColor+';color:'+resultColor+';display:flex;align-items:center;justify-content:center;font-family:Anton,sans-serif;font-size:12px;flex-shrink:0">'+resultLabel+'</div>';
+  } else {
+    h += '<div style="width:24px;height:24px;border-radius:7px;background:rgba(255,255,255,0.04);border:1px dashed var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">—</div>';
+  }
+  // Versus info
+  h += '<div style="flex:1;min-width:0">';
+  h += '<div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(isHome?'vs':'@')+' '+(oppFlag?oppFlag+' ':'')+_esc(oppName)+'</div>';
+  h += '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+groupLabel+(dateLabel?' · '+dateLabel:'')+'</div>';
+  h += '</div>';
+  // Score
+  if(m.played){
+    h += '<div style="font-family:Anton,Manrope,sans-serif;font-size:18px;color:var(--text);flex-shrink:0;letter-spacing:0.5px">'+ga+'<span style="color:var(--muted);font-size:14px;margin:0 2px">-</span>'+gb+'</div>';
+  } else if(m.time){
+    h += '<div style="font-family:Anton,sans-serif;font-size:14px;color:var(--gold);flex-shrink:0">'+m.time+'</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+// Popup INFO GIOCATORE: partite in cui ha segnato
+function showPlayerInfo(playerName){
+  if(!playerName) return;
+  var target = playerName.trim().toLowerCase();
+  var foundMatches = []; // {match, goals, team, isF, _isBracket?}
+  
+  // Cerca nei gironi maschili
+  matches.forEach(function(m){
+    if(!m.played) return;
+    [m.scorersA||[], m.scorersB||[]].forEach(function(arr, idx){
+      arr.forEach(function(s){
+        if(s.name && s.name.trim().toLowerCase()===target){
+          foundMatches.push({match:m, goals:s.goals||1, team: idx===0?m.a:m.b, isF:false});
+        }
+      });
+    });
+  });
+  // Femminili
+  matchesF.forEach(function(m){
+    if(!m.played) return;
+    [m.scorersA||[], m.scorersB||[]].forEach(function(arr, idx){
+      arr.forEach(function(s){
+        if(s.name && s.name.trim().toLowerCase()===target){
+          foundMatches.push({match:m, goals:s.goals||1, team: idx===0?m.a:m.b, isF:true});
+        }
+      });
+    });
+  });
+  // Tabellone
+  var bData = window._bracketData || {M:{},F:{}};
+  ['M','F'].forEach(function(lg){
+    var bLg = bData[lg]||{};
+    var labelMap = {qf1:'QF 1',qf2:'QF 2',qf3:'QF 3',qf4:'QF 4',sf1:'Semifinale 1',sf2:'Semifinale 2',final:'Finale'};
+    Object.keys(bLg).forEach(function(k){
+      var bm = bLg[k];
+      if(!bm || typeof bm.ga!=='number' || typeof bm.gb!=='number') return;
+      [bm.scorersA||[], bm.scorersB||[]].forEach(function(arr, idx){
+        arr.forEach(function(s){
+          if(s.name && s.name.trim().toLowerCase()===target){
+            foundMatches.push({
+              match: {a:bm.a,b:bm.b,g1:bm.ga,g2:bm.gb,played:true,group:labelMap[k]||k,_isBracket:true,date:'',time:'',scorersA:bm.scorersA,scorersB:bm.scorersB,mvp:bm.mvp},
+              goals: s.goals||1,
+              team: idx===0?bm.a:bm.b,
+              isF: lg==='F',
+              _bracketKey: k,
+              _bracketLeague: lg
+            });
+          }
+        });
+      });
+    });
+  });
+  
+  // Conta gol totali e MVP
+  var totalGoals = foundMatches.reduce(function(s,f){return s+f.goals;},0);
+  var mvpCount = 0;
+  matches.forEach(function(m){ if(m.played && m.mvp && m.mvp.toLowerCase().trim()===target) mvpCount++; });
+  matchesF.forEach(function(m){ if(m.played && m.mvp && m.mvp.toLowerCase().trim()===target) mvpCount++; });
+  Object.keys(bData.M||{}).forEach(function(k){
+    var bm = bData.M[k];
+    if(bm && bm.mvp && bm.mvp.toLowerCase().trim()===target) mvpCount++;
+  });
+  Object.keys(bData.F||{}).forEach(function(k){
+    var bm = bData.F[k];
+    if(bm && bm.mvp && bm.mvp.toLowerCase().trim()===target) mvpCount++;
+  });
+  
+  var initials = playerName.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2);
+  var firstTeam = foundMatches[0] ? foundMatches[0].team : '';
+  var firstTeamSplit = _splitTeamFlag(firstTeam);
+  var avatarHTML = playerImages[playerName] 
+    ? '<img src="'+_esc(playerImages[playerName])+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%" alt="">'
+    : _esc(initials);
+  var crown = (totalGoals>=5) ? ' 👑' : '';
+  
+  var h = '';
+  // Header giocatore
+  h += '<div style="text-align:center;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">';
+  h += '<div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,rgba(245,197,24,0.2),rgba(245,197,24,0.05));border:2px solid rgba(245,197,24,0.3);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-family:Inter,sans-serif;font-size:22px;font-weight:800;color:var(--gold);overflow:hidden">'+avatarHTML+'</div>';
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1">'+_esc(playerName)+crown+'</div>';
+  if(firstTeam){
+    h += '<div style="font-size:11px;color:var(--muted);margin-top:6px;display:flex;align-items:center;justify-content:center;gap:5px">';
+    if(firstTeamSplit.flag) h += '<span style="font-size:14px">'+firstTeamSplit.flag+'</span>';
+    h += '<span>'+_esc(firstTeamSplit.name||firstTeam)+'</span>';
+    h += '</div>';
+  }
+  h += '</div>';
+  
+  // Stats
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">';
+  h += '<div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center">'+
+    '<div style="font-family:Anton,Manrope,sans-serif;font-size:24px;color:var(--gold);line-height:1">'+totalGoals+'</div>'+
+    '<div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.5px;margin-top:4px">⚽ GOL TOTALI</div>'+
+    '</div>';
+  h += '<div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center">'+
+    '<div style="font-family:Anton,Manrope,sans-serif;font-size:24px;color:var(--green);line-height:1">'+mvpCount+'</div>'+
+    '<div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.5px;margin-top:4px">⭐ MVP</div>'+
+    '</div>';
+  h += '<div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center">'+
+    '<div style="font-family:Anton,Manrope,sans-serif;font-size:24px;color:var(--text);line-height:1">'+foundMatches.length+'</div>'+
+    '<div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.5px;margin-top:4px">🎯 PARTITE A SEGNO</div>'+
+    '</div>';
+  h += '</div>';
+  
+  // Lista partite in cui ha segnato
+  if(foundMatches.length > 0){
+    h += '<div style="font-size:11px;font-weight:800;color:var(--gold);letter-spacing:0.18em;margin-bottom:8px;text-transform:uppercase">⚽ Ha Segnato In</div>';
+    foundMatches.forEach(function(f){
+      var m = f.match;
+      var splitT = _splitTeamFlag(f.team);
+      var oppName = (m.a===f.team) ? m.b : m.a;
+      var splitOpp = _splitTeamFlag(oppName);
+      var groupLabel = m._isBracket ? ('🏆 '+(m.group||'Tabellone')) : ('Girone '+m.group);
+      
+      h += '<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">';
+      // Badge gol
+      h += '<div style="display:flex;flex-direction:column;align-items:center;background:rgba(245,197,24,0.12);border:1px solid rgba(245,197,24,0.3);padding:4px 8px;border-radius:8px;flex-shrink:0;min-width:36px">';
+      h += '<div style="font-family:Anton,Manrope,sans-serif;font-size:18px;color:var(--gold);line-height:1">'+f.goals+'</div>';
+      h += '<div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.3px;margin-top:1px">GOL</div>';
+      h += '</div>';
+      // Info partita
+      h += '<div style="flex:1;min-width:0">';
+      h += '<div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2">';
+      if(splitT.flag) h += splitT.flag+' ';
+      h += _esc(splitT.name||f.team)+' <span style="color:var(--muted);font-size:10px">vs</span> ';
+      if(splitOpp.flag) h += splitOpp.flag+' ';
+      h += _esc(splitOpp.name||oppName);
+      h += '</div>';
+      h += '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+groupLabel+(m.date?' · '+_fmtDate(m.date):'')+'</div>';
+      h += '</div>';
+      // Result
+      h += '<div style="font-family:Anton,Manrope,sans-serif;font-size:16px;color:var(--text);flex-shrink:0;letter-spacing:0.5px">';
+      h += (m.a===f.team ? m.g1 : m.g2)+'<span style="color:var(--muted);font-size:12px;margin:0 2px">-</span>'+(m.a===f.team ? m.g2 : m.g1);
+      h += '</div>';
+      h += '</div>';
+    });
+  } else {
+    h += '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Non ha ancora segnato</div>';
+  }
+  
+  _openInfoPopup(h);
+}
+
+// Popup INFO PARTITA TABELLONE: dettagli partita con marcatori
+function showBracketMatchInfo(matchId){
+  // matchId formato tab_qf1 o tabF_qf1
+  if(!matchId || (matchId.indexOf('tab_')!==0 && matchId.indexOf('tabF_')!==0)) return;
+  var isF = matchId.indexOf('tabF_')===0;
+  var key = isF ? matchId.substring(5) : matchId.substring(4);
+  var bData = window._bracketData || {M:{},F:{}};
+  var bm = (isF ? bData.F : bData.M)[key];
+  if(!bm) return;
+  
+  var labelMap = {qf1:'Quarti 1',qf2:'Quarti 2',qf3:'Quarti 3',qf4:'Quarti 4',sf1:'Semifinale 1',sf2:'Semifinale 2',final:'Finale'};
+  var splitA = _splitTeamFlag(bm.a||'');
+  var splitB = _splitTeamFlag(bm.b||'');
+  var played = typeof bm.ga==='number' && typeof bm.gb==='number';
+  var winnerA = played && bm.ga > bm.gb;
+  var winnerB = played && bm.gb > bm.ga;
+  
+  var h = '';
+  // Header con tag
+  h += '<div style="text-align:center;margin-bottom:14px">';
+  h += '<div style="display:inline-block;font-family:Inter,sans-serif;font-size:9px;color:var(--gold);background:rgba(245,197,24,0.12);padding:4px 10px;border-radius:14px;letter-spacing:0.2em;font-weight:700;text-transform:uppercase">🏆 '+(labelMap[key]||key)+' · '+(isF?'♀ Femminile':'♂ Maschile')+'</div>';
+  h += '</div>';
+  
+  // Box risultato
+  h += '<div style="background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">';
+  // Squadra A
+  var nameAColor = winnerA ? 'var(--gold)' : 'var(--text)';
+  var scoreAColor = winnerA ? 'var(--gold)' : 'var(--text)';
+  h += '<div style="display:flex;align-items:center;gap:12px;'+(winnerB?'opacity:0.5':'')+'">';
+  h += '<div style="width:42px;height:42px;border-radius:10px;background:var(--s3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:26px">'+(splitA.flag||'?')+'</div>';
+  h += '<div style="flex:1;min-width:0">';
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:16px;font-weight:800;color:'+nameAColor+';line-height:1">'+_esc(splitA.name||bm.a||'?')+'</div>';
+  h += '</div>';
+  h += '<div style="font-family:Anton,Manrope,sans-serif;font-size:28px;color:'+scoreAColor+';flex-shrink:0;line-height:1">'+(played?bm.ga:'—')+'</div>';
+  h += '</div>';
+  
+  h += '<div style="height:1px;background:var(--border);margin:10px 0"></div>';
+  
+  // Squadra B
+  var nameBColor = winnerB ? 'var(--gold)' : 'var(--text)';
+  var scoreBColor = winnerB ? 'var(--gold)' : 'var(--text)';
+  h += '<div style="display:flex;align-items:center;gap:12px;'+(winnerA?'opacity:0.5':'')+'">';
+  h += '<div style="width:42px;height:42px;border-radius:10px;background:var(--s3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:26px">'+(splitB.flag||'?')+'</div>';
+  h += '<div style="flex:1;min-width:0">';
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:16px;font-weight:800;color:'+nameBColor+';line-height:1">'+_esc(splitB.name||bm.b||'?')+'</div>';
+  h += '</div>';
+  h += '<div style="font-family:Anton,Manrope,sans-serif;font-size:28px;color:'+scoreBColor+';flex-shrink:0;line-height:1">'+(played?bm.gb:'—')+'</div>';
+  h += '</div>';
+  h += '</div>';
+  
+  // MVP
+  if(bm.mvp){
+    h += '<div style="background:linear-gradient(135deg,rgba(0,214,143,0.12),rgba(0,214,143,0.02));border:1px solid rgba(0,214,143,0.3);border-radius:12px;padding:12px;margin-bottom:14px;display:flex;align-items:center;gap:10px">';
+    h += '<div style="font-size:24px">⭐</div>';
+    h += '<div style="flex:1">';
+    h += '<div style="font-size:10px;font-weight:700;color:var(--green);letter-spacing:0.2em;text-transform:uppercase">MVP DELLA PARTITA</div>';
+    h += '<div style="font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-top:2px;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,214,143,0.3);text-underline-offset:3px" onclick="showPlayerInfo(\''+bm.mvp.replace(/'/g,"\\'")+'\')">'+_esc(bm.mvp)+'</div>';
+    h += '</div>';
+    h += '</div>';
+  }
+  
+  // Marcatori
+  if(played){
+    var hasScorers = (bm.scorersA||[]).length > 0 || (bm.scorersB||[]).length > 0;
+    if(hasScorers){
+      h += '<div style="font-size:11px;font-weight:800;color:var(--gold);letter-spacing:0.18em;margin-bottom:8px;text-transform:uppercase">⚽ Marcatori</div>';
+      
+      function renderScorerList(scorers, teamName){
+        if(!scorers || !scorers.length) return '';
+        var splitT = _splitTeamFlag(teamName);
+        var hh = '<div style="margin-bottom:10px">';
+        hh += '<div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:0.5px;margin-bottom:5px;display:flex;align-items:center;gap:5px">';
+        if(splitT.flag) hh += '<span style="font-size:13px">'+splitT.flag+'</span>';
+        hh += '<span>'+_esc((splitT.name||teamName).toUpperCase())+'</span>';
+        hh += '</div>';
+        scorers.forEach(function(s){
+          var nameE = s.name.replace(/'/g,"\\'");
+          hh += '<div onclick="showPlayerInfo(\''+nameE+'\')" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:4px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all .15s">';
+          var initials = s.name.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2);
+          hh += '<div style="width:28px;height:28px;border-radius:50%;background:rgba(245,197,24,0.15);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0">'+_esc(initials)+'</div>';
+          hh += '<div style="flex:1;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(s.name)+'</div>';
+          hh += '<div style="background:rgba(245,197,24,0.12);color:var(--gold);padding:3px 8px;border-radius:6px;font-family:Anton,sans-serif;font-size:13px;flex-shrink:0">⚽ '+(s.goals||1)+'</div>';
+          hh += '</div>';
+        });
+        hh += '</div>';
+        return hh;
+      }
+      
+      h += renderScorerList(bm.scorersA, bm.a);
+      h += renderScorerList(bm.scorersB, bm.b);
+    } else {
+      h += '<div style="text-align:center;padding:14px;color:var(--muted);font-size:11px;font-style:italic">Nessun marcatore registrato</div>';
+    }
+  } else {
+    h += '<div style="text-align:center;padding:14px;color:var(--muted);font-size:11px;font-style:italic">Partita non ancora giocata</div>';
+  }
+  
+  _openInfoPopup(h);
 }
 
 function hideSplash() {
