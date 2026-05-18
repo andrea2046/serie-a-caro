@@ -1389,24 +1389,24 @@ window._activeStage = 'qf'; // 'qf' | 'sf' | 'final'
 window._INITIAL_BRACKET = {
   M: {
     // QUARTI MASCHILI (nomi identici a quelli dei gironi per matching marcatori)
-    qf1: {a:'🇧🇷 5CC',     b:'🇭🇷 4DE (2)', ga:null, gb:null},
-    qf2: {a:'🇳🇱 4CS',     b:'🇵🇦 2EE',     ga:null, gb:null},
-    qf3: {a:'🇦🇷 5DE',     b:'🇵🇹 5AC',     ga:null, gb:null},
-    qf4: {a:'🇮🇹 4DE (1)', b:'🇳🇴 3DE',     ga:null, gb:null},
+    qf1: {a:'🇧🇷 5CC',     b:'🇭🇷 4DE (2)', ga:null, gb:null, date:'2026-05-19', time:'17:00'},
+    qf2: {a:'🇳🇱 4CS',     b:'🇵🇦 2EE',     ga:null, gb:null, date:'2026-05-20', time:'15:00'},
+    qf3: {a:'🇦🇷 5DE',     b:'🇵🇹 5AC',     ga:null, gb:null, date:'2026-05-20', time:'16:00'},
+    qf4: {a:'🇮🇹 4DE (1)', b:'🇳🇴 3DE',     ga:null, gb:null, date:'2026-05-18', time:'18:00'},
     // Semifinali e finale: vincitori auto-avanzati
-    sf1: {a:'', b:'', ga:null, gb:null},
-    sf2: {a:'', b:'', ga:null, gb:null},
-    final: {a:'', b:'', ga:null, gb:null}
+    sf1: {a:'', b:'', ga:null, gb:null, date:'', time:''},
+    sf2: {a:'', b:'', ga:null, gb:null, date:'', time:''},
+    final: {a:'', b:'', ga:null, gb:null, date:'', time:''}
   },
   F: {
     // QUARTI FEMMINILI
-    qf1: {a:'🇫🇷 4AC', b:'🇦🇺 5AS', ga:null, gb:null},
-    qf2: {a:'🇨🇦 2CS', b:'🇩🇪 5BC', ga:null, gb:null},
-    qf3: {a:'🇵🇹 5AC', b:'🇺🇾 4BC', ga:null, gb:null},
-    qf4: {a:'🇰🇷 3BS', b:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 3ES', ga:null, gb:null},
-    sf1: {a:'', b:'', ga:null, gb:null},
-    sf2: {a:'', b:'', ga:null, gb:null},
-    final: {a:'', b:'', ga:null, gb:null}
+    qf1: {a:'🇫🇷 4AC', b:'🇦🇺 5AS', ga:null, gb:null, date:'2026-05-19', time:'16:00'},
+    qf2: {a:'🇨🇦 2CS', b:'🇩🇪 5BC', ga:null, gb:null, date:'2026-05-18', time:'16:00'},
+    qf3: {a:'🇵🇹 5AC', b:'🇺🇾 4BC', ga:null, gb:null, date:'2026-05-19', time:'15:00'},
+    qf4: {a:'🇰🇷 3BS', b:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 3ES', ga:null, gb:null, date:'2026-05-18', time:'17:00'},
+    sf1: {a:'', b:'', ga:null, gb:null, date:'', time:''},
+    sf2: {a:'', b:'', ga:null, gb:null, date:'', time:''},
+    final: {a:'', b:'', ga:null, gb:null, date:'', time:''}
   }
 };
 
@@ -1614,16 +1614,43 @@ function renderTabellone(){
       h += '<div style="display:inline-flex;align-items:center;gap:4px;font-family:Inter,sans-serif;font-size:8px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#10b981;background:rgba(16,185,129,0.08);padding:3px 7px;border-radius:14px;border:1px solid rgba(16,185,129,0.2)">';
       h += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="width:8px;height:8px"><polyline points="20 6 9 17 4 12"/></svg>';
       h += '<span>Finita</span></div>';
+    } else if(match.locked){
+      h += '<div style="display:inline-flex;align-items:center;gap:4px;font-family:Inter,sans-serif;font-size:8px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);background:rgba(245,197,24,0.08);padding:3px 7px;border-radius:14px;border:1px solid rgba(245,197,24,0.2)">🔒 CHIUSE</div>';
     } else if(bothEmpty){
       h += '<div style="display:inline-flex;align-items:center;gap:4px;font-family:Inter,sans-serif;font-size:8px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#52525b;background:rgba(255,255,255,0.02);padding:3px 7px;border-radius:14px;border:1px solid rgba(255,255,255,0.05)">';
       h += '<div style="width:5px;height:5px;border-radius:50%;background:#52525b"></div>';
       h += '<span>Attesa</span></div>';
     } else {
+      // Mostra orario se disponibile
+      var timeLabel = match.time ? match.time : '';
       h += '<div style="display:inline-flex;align-items:center;gap:4px;font-family:Inter,sans-serif;font-size:8px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);background:rgba(245,197,24,0.08);padding:3px 7px;border-radius:14px;border:1px solid rgba(245,197,24,0.2)">';
       h += '<div style="width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 5px var(--gold)"></div>';
-      h += '<span>In Programma</span></div>';
+      h += '<span>'+(timeLabel?timeLabel:'In Programma')+'</span></div>';
     }
     h += '</div>';
+    
+    // Riga data (se disponibile e partita non giocata)
+    if(!played && match.date){
+      h += '<div style="padding:4px 12px;font-family:Inter,sans-serif;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--s1);text-align:center;letter-spacing:0.3px">';
+      h += _fmtDate(match.date)+(match.time?' · ore '+match.time:'');
+      h += '</div>';
+    }
+    
+    // Pulsante blocca scommesse (solo admin, partita non giocata e con squadre assegnate)
+    if(admin && !played && match.a && match.b){
+      if(match.locked){
+        h += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 12px;background:rgba(245,197,24,0.06);border-bottom:1px solid var(--border)">';
+        h += '<span style="font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</span>';
+        h += '<button onclick="event.stopPropagation();_toggleBracketLock(\''+(isF?'F':'M')+'\',\''+m.key+'\',false)" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:var(--red);padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer">Sblocca</button>';
+        h += '</div>';
+      } else {
+        h += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 12px;background:var(--s1);border-bottom:1px solid var(--border)">';
+        h += '<button onclick="event.stopPropagation();_toggleBracketLock(\''+(isF?'F':'M')+'\',\''+m.key+'\',true)" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);padding:3px 12px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer;letter-spacing:0.5px">🔓 Blocca scommesse</button>';
+        h += '</div>';
+      }
+    } else if(!played && match.locked && !admin){
+      h += '<div style="text-align:center;padding:4px 0 5px;font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px;border-bottom:1px solid var(--border)">🔒 SCOMMESSE CHIUSE</div>';
+    }
     
     // ═══════════════════════════════
     // BODY: scontro tra le squadre
@@ -1989,6 +2016,20 @@ async function _resetBracket(){
   return;
 }
 
+async function _toggleBracketLock(league, matchKey, lock){
+  if(!window._bracketData) return;
+  if(!window._bracketData[league]) window._bracketData[league] = {};
+  if(!window._bracketData[league][matchKey]) window._bracketData[league][matchKey] = {};
+  window._bracketData[league][matchKey].locked = lock;
+  try {
+    await _fbRef.child('bracket/'+league+'/'+matchKey+'/locked').set(lock);
+    showToast(lock ? '🔒 Scommesse chiuse' : '🔓 Scommesse riaperte');
+  } catch(e){
+    showToast('Errore: '+e.message, 'err');
+  }
+  renderTabellone();
+}
+
 // Carica il tabellone da Firebase all'avvio
 function _loadBracket(){
   _fbRef.child('bracket').once('value').then(function(snap){
@@ -2002,7 +2043,18 @@ function _loadBracket(){
       ['M','F'].forEach(function(lg){
         if(fbData[lg]){
           Object.keys(fbData[lg]).forEach(function(k){
-            window._bracketData[lg][k] = fbData[lg][k];
+            var init = window._INITIAL_BRACKET[lg][k] || {};
+            var fb = fbData[lg][k] || {};
+            window._bracketData[lg][k] = Object.assign({}, init, {
+              ga: (typeof fb.ga==='number') ? fb.ga : init.ga,
+              gb: (typeof fb.gb==='number') ? fb.gb : init.gb,
+              scorersA: fb.scorersA || init.scorersA || [],
+              scorersB: fb.scorersB || init.scorersB || [],
+              mvp: fb.mvp || '',
+              locked: fb.locked || false,
+              a: fb.a || init.a || '',
+              b: fb.b || init.b || ''
+            });
           });
         }
       });
@@ -2023,7 +2075,18 @@ try {
       ['M','F'].forEach(function(lg){
         if(fbData[lg]){
           Object.keys(fbData[lg]).forEach(function(k){
-            window._bracketData[lg][k] = fbData[lg][k];
+            var init = window._INITIAL_BRACKET[lg][k] || {};
+            var fb = fbData[lg][k] || {};
+            window._bracketData[lg][k] = Object.assign({}, init, {
+              ga: (typeof fb.ga==='number') ? fb.ga : init.ga,
+              gb: (typeof fb.gb==='number') ? fb.gb : init.gb,
+              scorersA: fb.scorersA || init.scorersA || [],
+              scorersB: fb.scorersB || init.scorersB || [],
+              mvp: fb.mvp || '',
+              locked: fb.locked || false,
+              a: fb.a || init.a || '',
+              b: fb.b || init.b || ''
+            });
           });
         }
       });
@@ -3977,6 +4040,7 @@ function _getBracketBetMatches(isF){
     if(!m || !m.a || !m.b) return; // serve avere entrambe le squadre
     var played = (typeof m.ga==='number' && typeof m.gb==='number');
     if(played) return; // se giocata, non è più scommettibile
+    if(m.locked) return; // se bloccata, non è scommettibile
     // Crea match virtuale
     var virtId = (isF?'tabF_':'tab_')+k;
     result.push({
@@ -3990,8 +4054,8 @@ function _getBracketBetMatches(isF){
       _bracketKey: k,
       _stageLabel: stageLabels[k],
       _stageShort: stageKeys[k],
-      date: '',
-      time: ''
+      date: m.date || '',
+      time: m.time || ''
     });
   });
   return result;
