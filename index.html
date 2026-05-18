@@ -1278,6 +1278,32 @@ function renderOggi(){
   var allUpcoming=[];
   matches.forEach(function(m){if(m.date&&!m.played&&m.date>=todayStr) allUpcoming.push(Object.assign({_l:'M'},m));});
   matchesF.forEach(function(m){if(m.date&&!m.played&&m.date>=todayStr) allUpcoming.push(Object.assign({_l:'F'},m));});
+  
+  // Aggiungi partite del tabellone non ancora giocate
+  var bData = window._bracketData || {M:{},F:{}};
+  var stageLabels = {qf1:'QF',qf2:'QF',qf3:'QF',qf4:'QF',sf1:'SF',sf2:'SF',final:'FINALE'};
+  ['M','F'].forEach(function(lg){
+    var lgData = bData[lg]||{};
+    Object.keys(lgData).forEach(function(k){
+      var bm = lgData[k];
+      if(!bm || !bm.a || !bm.b) return;
+      var played = (typeof bm.ga==='number' && typeof bm.gb==='number');
+      if(played) return;
+      if(!bm.date || bm.date<todayStr) return;
+      allUpcoming.push({
+        _l: lg,
+        _isBracket: true,
+        _stageLabel: stageLabels[k] || k.toUpperCase(),
+        date: bm.date,
+        time: bm.time || '',
+        a: bm.a,
+        b: bm.b,
+        group: stageLabels[k] || k.toUpperCase(),
+        played: false
+      });
+    });
+  });
+  
   allUpcoming.sort(function(a,b){
     var da=a.date+a.time, db=b.date+b.time;
     return da<db?-1:da>db?1:0;
@@ -1301,25 +1327,44 @@ function renderOggi(){
     var color=isM?'#3d8ef0':'#ff6ec7';
     var bg=isM?'rgba(61,142,240,0.06)':'rgba(255,110,199,0.06)';
     var border=isM?'rgba(61,142,240,0.25)':'rgba(255,110,199,0.25)';
-    var clickAttr=admin?(' onclick="_oggiOpenMatch('+m.id+',\''+m._l+'\')"'):'';
+    
+    var isBracket = m._isBracket;
+    var clickAttr;
+    if(isBracket && admin){
+      // Cerca la key del tabellone (qf1/qf2/...) per aprire l'editor
+      var bData = window._bracketData || {M:{},F:{}};
+      var lgData = bData[m._l] || {};
+      var bKey = '';
+      Object.keys(lgData).forEach(function(k){
+        if(lgData[k] && lgData[k].a===m.a && lgData[k].b===m.b) bKey = k;
+      });
+      clickAttr = bKey ? (' onclick="_editBracketMatch(\''+m._l+'\',\''+bKey+'\')"') : '';
+    } else {
+      clickAttr = admin?(' onclick="_oggiOpenMatch('+m.id+',\''+m._l+'\')"'):'';
+    }
     var cursorStyle=admin?';cursor:pointer':'';
+    
+    // Label nel box centrale
+    var centralLabel = isBracket ? ('🏆 '+(m._stageLabel||'')) : ('GIR. '+m.group);
+    
     var h='<div style="border-bottom:1px solid rgba(255,255,255,0.04)">';
     h+='<div class="oggi-match-row"'+clickAttr+' style="display:flex;align-items:center;gap:10px;padding:11px 14px;transition:background .15s'+cursorStyle+'">'
       +'<div style="width:6px;height:38px;background:'+color+';border-radius:3px;flex-shrink:0"></div>'
       +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="event.stopPropagation();showTeamInfo(\''+m.a.replace(/'/g,"\\'")+'\')">'+_esc(m.a)+'</div></div>'
-      +'<div style="display:flex;flex-direction:column;align-items:center;min-width:62px;padding:4px 8px;background:'+bg+';border:1px solid '+border+';border-radius:8px">'
-      +'<div style="font-family:Anton,sans-serif;font-size:14px;color:'+color+';line-height:1">'+m.time+'</div>'
-      +'<div style="font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:0.5px">GIR. '+m.group+'</div>'
+      +'<div style="display:flex;flex-direction:column;align-items:center;min-width:62px;padding:4px 8px;background:'+(isBracket?'rgba(245,197,24,0.08)':bg)+';border:1px solid '+(isBracket?'rgba(245,197,24,0.3)':border)+';border-radius:8px">'
+      +'<div style="font-family:Anton,sans-serif;font-size:14px;color:'+(isBracket?'var(--gold)':color)+';line-height:1">'+m.time+'</div>'
+      +'<div style="font-size:9px;color:'+(isBracket?'var(--gold)':'var(--muted)')+';margin-top:1px;letter-spacing:0.5px;font-weight:'+(isBracket?'700':'400')+'">'+centralLabel+'</div>'
       +'</div>'
       +'<div style="flex:1;min-width:0;text-align:right"><div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="event.stopPropagation();showTeamInfo(\''+m.b.replace(/'/g,"\\'")+'\')">'+_esc(m.b)+'</div></div>'
       +'</div>';
-    if(admin){
+    
+    if(admin && !isBracket){
       if(m.locked){
         h+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 0 9px"><span style="font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</span><button onclick="event.stopPropagation();toggleMatchLock('+m.id+','+(isM?'false':'true')+');renderOggi()" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:var(--red);padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer">Sblocca</button></div>';
       } else {
         h+='<div style="text-align:center;padding:0 0 9px"><button onclick="event.stopPropagation();toggleMatchLock('+m.id+','+(isM?'false':'true')+');renderOggi()" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px">🔓 Blocca scommesse</button></div>';
       }
-    } else if(m.locked){
+    } else if(m.locked && !isBracket){
       h+='<div style="text-align:center;padding:0 0 9px;font-size:10px;font-weight:700;color:var(--gold);letter-spacing:1px">🔒 SCOMMESSE CHIUSE</div>';
     }
     h+='</div>';
@@ -1390,8 +1435,8 @@ window._INITIAL_BRACKET = {
   M: {
     // QUARTI MASCHILI (nomi identici a quelli dei gironi per matching marcatori)
     qf1: {a:'🇧🇷 5CC',     b:'🇭🇷 4DE (2)', ga:null, gb:null, date:'2026-05-19', time:'17:00'},
-    qf2: {a:'🇳🇱 4CS',     b:'🇵🇦 2EE',     ga:null, gb:null, date:'2026-05-20', time:'15:00'},
-    qf3: {a:'🇦🇷 5DE',     b:'🇵🇹 5AC',     ga:null, gb:null, date:'2026-05-20', time:'16:00'},
+    qf2: {a:'🇳🇱 4CS',     b:'🇵🇦 2EE',     ga:null, gb:null, date:'2026-05-20', time:'16:00'},
+    qf3: {a:'🇦🇷 5DE',     b:'🇵🇹 5AC',     ga:null, gb:null, date:'2026-05-20', time:'17:00'},
     qf4: {a:'🇮🇹 4DE (1)', b:'🇳🇴 3DE',     ga:null, gb:null, date:'2026-05-18', time:'18:00'},
     // Semifinali e finale: vincitori auto-avanzati
     sf1: {a:'', b:'', ga:null, gb:null, date:'', time:''},
@@ -1961,7 +2006,13 @@ async function _saveBracketMatch(league, matchKey){
     showToast('✅ Salvato');
   } catch(e){
     setSyncStatus('err','Errore salvataggio');
-    showToast('Errore: '+e.message,'err');
+    console.error('Errore salvataggio bracket:',e);
+    if(e.code === 'PERMISSION_DENIED' || /permission/i.test(e.message||'')){
+      alert('❌ Permission denied su Firebase.\n\nDevi aggiornare le regole Firebase per permettere la scrittura del path "bracket".\n\nVai su:\nFirebase Console → Realtime Database → Regole\n\nE assicurati che dentro "sac" ci sia:\n\n"bracket": {\n  ".write": "auth != null && root.child(\'adminUIDs\').child(auth.uid).val() == true"\n}\n\nDettaglio errore: '+e.message);
+    } else {
+      showToast('Errore: '+e.message,'err');
+    }
+    return; // non chiudere il popup
   }
   document.getElementById('bracketEditPopup').remove();
   renderTabellone();
@@ -2025,7 +2076,15 @@ async function _toggleBracketLock(league, matchKey, lock){
     await _fbRef.child('bracket/'+league+'/'+matchKey+'/locked').set(lock);
     showToast(lock ? '🔒 Scommesse chiuse' : '🔓 Scommesse riaperte');
   } catch(e){
-    showToast('Errore: '+e.message, 'err');
+    console.error('Errore lock bracket:',e);
+    if(e.code === 'PERMISSION_DENIED' || /permission/i.test(e.message||'')){
+      alert('❌ Permission denied.\n\nServe aggiornare le regole Firebase per il path "bracket".\n\nVai su Firebase Console → Realtime Database → Regole e aggiungi dentro "sac":\n\n"bracket": {\n  ".write": "auth != null && root.child(\'adminUIDs\').child(auth.uid).val() == true"\n}');
+    } else {
+      showToast('Errore: '+e.message, 'err');
+    }
+    // Rollback locale
+    window._bracketData[league][matchKey].locked = !lock;
+    return;
   }
   renderTabellone();
 }
@@ -4062,14 +4121,18 @@ function _getBracketBetMatches(isF){
 }
 
 function getShuffledMatches(mList,isF){
-  // Aggiungi partite del tabellone in cima (alla pari di "oggi")
+  // Aggiungi partite del tabellone insieme a quelle dei gironi, ordinate per data/ora
   var bracketMatches = _getBracketBetMatches(isF);
   var notPlayed=mList.filter(function(m){return !m.played});
   // Data di oggi YYYY-MM-DD
   var _now=new Date();
   var _today=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
-  var arr=notPlayed.map(function(m){return{m:m,isF:isF}});
-  arr.sort(function(a,b){
+  
+  // Combina tutto in un'unica lista
+  var all = notPlayed.map(function(m){return{m:m,isF:isF}})
+    .concat(bracketMatches.map(function(m){return{m:m,isF:isF}}));
+  
+  all.sort(function(a,b){
     // Priorità 1: partite di oggi prima
     var aIsToday=(a.m.date===_today)?0:1;
     var bIsToday=(b.m.date===_today)?0:1;
@@ -4085,14 +4148,22 @@ function getShuffledMatches(mList,isF){
     if(a.m.date && b.m.date && a.m.date!==b.m.date){
       return a.m.date<b.m.date?-1:1;
     }
-    // Fallback: per girone, poi per id
+    // Tra partite della stessa data, ordina per orario
+    if(a.m.date===b.m.date && a.m.time && b.m.time){
+      if(a.m.time<b.m.time) return -1;
+      if(a.m.time>b.m.time) return 1;
+    }
+    // Le partite tabellone senza data vanno alla fine
+    if(!a.m.date && b.m.date) return 1;
+    if(a.m.date && !b.m.date) return -1;
+    // Fallback: per girone/fase, poi per id
+    if(a.m._isBracket && !b.m._isBracket) return 1; // tabellone dopo gironi a parità
+    if(!a.m._isBracket && b.m._isBracket) return -1;
     if(a.m.group<b.m.group) return -1;
     if(a.m.group>b.m.group) return 1;
-    return a.m.id-b.m.id;
+    return (a.m.id||0)-(b.m.id||0);
   });
-  // Inserisco i match del tabellone in cima a tutto
-  var bracketArr = bracketMatches.map(function(m){return{m:m,isF:isF}});
-  return bracketArr.concat(arr);
+  return all;
 }
 
 // ════════════════════════════════════════
@@ -5254,6 +5325,7 @@ function renderPronostici(){
       var _shownTodayHeader=false, _shownNextHeader=false;
       for(var _ui=0;_ui<_upcoming.length;_ui++){
         var _curIsToday=(_upcoming[_ui].m.date===_today2);
+        var _curIsBracket=_upcoming[_ui].m._isBracket;
         if(_curIsToday && !_shownTodayHeader){
           h+='<div class="pro-group-sep" style="background:linear-gradient(135deg,rgba(245,197,24,0.2),rgba(245,197,24,0.05));color:var(--gold);border:1px solid rgba(245,197,24,0.4)">🔴 OGGI · Partite del giorno</div>';
           _shownTodayHeader=true;
@@ -5264,15 +5336,24 @@ function renderPronostici(){
             _shownNextHeader=true;
             _lastSep='next';
           }
-          // Sotto le prossime, separa per girone
-          var _curGroupKey=_upcoming[_ui].m.group+(_upcoming[_ui].isF?'_F':'_M');
-          if(_curGroupKey!==_lastSep && _lastSep!=='next'){
-            h+='<div class="pro-group-sep" style="font-size:11px;opacity:0.7">Girone '+_upcoming[_ui].m.group+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
-            _lastSep=_curGroupKey;
-          } else if(_lastSep==='next'){
-            // dopo l'header generale, prima del primo girone
-            h+='<div class="pro-group-sep" style="font-size:11px;opacity:0.7">Girone '+_upcoming[_ui].m.group+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
-            _lastSep=_curGroupKey;
+          // Tabellone ha label diversa dai gironi
+          if(_curIsBracket){
+            var _bracketSepKey = 'tabellone_'+(_upcoming[_ui].isF?'F':'M');
+            if(_bracketSepKey!==_lastSep){
+              h+='<div class="pro-group-sep" style="font-size:11px;opacity:0.7;color:var(--gold)">🏆 Tabellone'+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
+              _lastSep=_bracketSepKey;
+            }
+          } else {
+            // Sotto le prossime, separa per girone
+            var _curGroupKey=_upcoming[_ui].m.group+(_upcoming[_ui].isF?'_F':'_M');
+            if(_curGroupKey!==_lastSep && _lastSep!=='next'){
+              h+='<div class="pro-group-sep" style="font-size:11px;opacity:0.7">Girone '+_upcoming[_ui].m.group+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
+              _lastSep=_curGroupKey;
+            } else if(_lastSep==='next'){
+              // dopo l'header generale, prima del primo girone
+              h+='<div class="pro-group-sep" style="font-size:11px;opacity:0.7">Girone '+_upcoming[_ui].m.group+(_upcoming[_ui].isF?' · Femminile':'')+'</div>';
+              _lastSep=_curGroupKey;
+            }
           }
         }
         var _um=_upcoming[_ui],_m=_um.m;
