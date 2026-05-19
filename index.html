@@ -2020,11 +2020,26 @@ async function _saveBracketMatch(league, matchKey){
 }
 
 // Risoluzione scommesse pendenti su partite del tabellone (chiamata dopo aver inserito un risultato)
-function _resolveBracketBets(){
-  var all = getAllData();
+async function _resolveBracketBets(){
+  // Fetch fresca da Firebase per essere SICURI di avere tutti gli utenti
+  var all;
+  try {
+    showToast('🔄 Caricamento dati da Firebase...');
+    var snap = await _fbRef.child('proData').once('value');
+    var fbData = snap.val() || {};
+    // Aggiorna anche il localStorage
+    localStorage.setItem('sac_pro_data', JSON.stringify(fbData));
+    all = fbData;
+    console.log('✅ Caricati '+Object.keys(all).length+' utenti da Firebase');
+  } catch(e){
+    console.error('Errore fetch Firebase, uso localStorage:', e);
+    all = getAllData();
+  }
+  
   var resolved = 0, winners = 0, paid = 0;
   var totalBetsScanned = 0, bracketBetsFound = 0, stillPending = 0;
   var debugList = [];
+  var modifiedUsers = []; // per tracking dei salvataggi individuali
   
   // Log: verifica utenti presenti
   var userKeys = Object.keys(all);
@@ -2040,7 +2055,7 @@ function _resolveBracketBets(){
     console.log('  - bets dettaglio:');
     (lk.storia||[]).forEach(function(bet){
       var sel = (bet.schedina||[]).map(function(s){return s.matchId+':'+s.label}).join(' | ');
-      console.log('    bet#'+bet.id+' status='+bet.status+' selezioni='+sel);
+      console.log('    bet#'+bet.id+' status='+bet.status+' vincita='+bet.vincita+' selezioni='+sel);
     });
   } else {
     console.log('❌ luckyboy NON ESISTE in proData');
@@ -2100,7 +2115,10 @@ function _resolveBracketBets(){
         stillPending++;
       }
     });
-    if(changed) all[username] = d;
+    if(changed){
+      all[username] = d;
+      modifiedUsers.push(username);
+    }
   });
   
   console.log('=== RISOLUZIONE SCOMMESSE TABELLONE ===');
@@ -2108,11 +2126,32 @@ function _resolveBracketBets(){
   console.log('Scommesse con selezioni tabellone:', bracketBetsFound);
   console.log('Ancora pendenti:', stillPending);
   console.log('Risolte:', resolved, '(vinte:', winners, '· token pagati:', paid+')');
+  console.log('Utenti modificati:', modifiedUsers.length, '·', modifiedUsers.join(', '));
   console.log('Dettaglio:');
   debugList.forEach(function(s){ console.log('  '+s); });
   
   if(resolved > 0){
-    saveAllData(all);
+    // Salva localmente
+    localStorage.setItem('sac_pro_data', JSON.stringify(all));
+    
+    // Scrivi su Firebase SOLO gli utenti modificati (più sicuro)
+    console.log('💾 Salvataggio su Firebase...');
+    var savePromises = modifiedUsers.map(function(uname){
+      var safe = uname.replace(/[.#$/\[\]]/g, '_');
+      return _fbRef.child('proData/'+safe).set(_fbSafe(all[uname])).then(function(){
+        console.log('  ✅ Salvato @'+uname+' (tokens='+all[uname].tokens+')');
+      }).catch(function(err){
+        console.error('  ❌ ERRORE salvataggio @'+uname+':', err);
+      });
+    });
+    
+    try {
+      await Promise.all(savePromises);
+      console.log('✅ Tutti i salvataggi completati');
+    } catch(e){
+      console.error('Errore promise.all:', e);
+    }
+    
     if(winners > 0){
       showToast('🏆 '+winners+' scommessa/e pagata/e! ('+paid+' 🪙 distribuiti)');
     } else {
