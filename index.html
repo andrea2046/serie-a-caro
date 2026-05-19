@@ -2034,10 +2034,13 @@ function _resolveBracketBets(){
     Object.keys(lgD).forEach(function(k){
       var bm = lgD[k];
       if(bm){
-        console.log(lg+'/'+k+': a="'+bm.a+'" b="'+bm.b+'" ga='+JSON.stringify(bm.ga)+' (type:'+typeof bm.ga+') gb='+JSON.stringify(bm.gb)+' (type:'+typeof bm.gb+') locked='+!!bm.locked+' scorers='+((bm.scorersA||[]).length+(bm.scorersB||[]).length));
+        var played = (typeof bm.ga==='number' && typeof bm.gb==='number');
+        var status = played ? ('GIOCATA '+bm.ga+'-'+bm.gb) : 'NON GIOCATA';
+        console.log(lg+'/'+k+' ['+status+']: "'+bm.a+'" vs "'+bm.b+'" · marcatori: '+((bm.scorersA||[]).length+(bm.scorersB||[]).length));
       }
     });
   });
+  console.log('=================================');
   
   Object.entries(all).forEach(function(e){
     var username = e[0], d = e[1];
@@ -4785,9 +4788,30 @@ function resolveBets(matchId,g1,g2,mvpN,isF){
 function checkSel(b){
   // ── PARTITE DEL TABELLONE ──
   // matchId tipo "tab_qf1" (M) o "tabF_qf1" (F)
-  if(typeof b.matchId === 'string' && (b.matchId.indexOf('tab_')===0 || b.matchId.indexOf('tabF_')===0)){
-    var isFBracket = b.matchId.indexOf('tabF_')===0;
-    var bracketKey = isFBracket ? b.matchId.substring(5) : b.matchId.substring(4);
+  // FIX: gestisce anche i vecchi id corrotti tipo "ftabF_qf1" (bug pre-fix)
+  var mid = b.matchId;
+  var isBracketMatch = false;
+  var bracketKey = null;
+  var isFBracket = false;
+  
+  if(typeof mid === 'string'){
+    // Normalizza: rimuovi prefisso 'f' errato se presente
+    var cleanMid = mid;
+    if(cleanMid.indexOf('ftab') === 0){
+      cleanMid = cleanMid.substring(1); // 'ftabF_qf1' → 'tabF_qf1'
+    }
+    if(cleanMid.indexOf('tabF_') === 0){
+      isBracketMatch = true;
+      isFBracket = true;
+      bracketKey = cleanMid.substring(5);
+    } else if(cleanMid.indexOf('tab_') === 0){
+      isBracketMatch = true;
+      isFBracket = false;
+      bracketKey = cleanMid.substring(4);
+    }
+  }
+  
+  if(isBracketMatch){
     var bData = window._bracketData || {M:{},F:{}};
     var leagueData = isFBracket ? (bData.F||{}) : (bData.M||{});
     var bMatch = leagueData[bracketKey];
@@ -4823,13 +4847,9 @@ function checkSel(b){
     
     // MARCATORE 1+/2+/3+
     if(b.market && b.market.indexOf('marcatore_')===0){
-      // label è tipo "Nome Cognome 1+"
       var requiredLevel = b.market.replace('marcatore_',''); // "1+", "2+", "3+"
       var minGoals = parseInt(requiredLevel.replace('+',''));
-      // Estrai il nome del giocatore dalla label
-      // label = "Nome Cognome 1+", devo togliere " 1+" finale
       var playerName = lbl.replace(/\s+\d+\+\s*$/,'').trim();
-      // Cerca il giocatore tra i marcatori salvati della partita
       var allScorers = [].concat(bMatch.scorersA||[]).concat(bMatch.scorersB||[]);
       var found = allScorers.find(function(s){
         return s.name && s.name.trim().toLowerCase() === playerName.toLowerCase();
@@ -4837,7 +4857,7 @@ function checkSel(b){
       if(found){
         return (found.goals >= minGoals) ? 'win' : 'lose';
       }
-      return 'lose'; // non ha segnato
+      return 'lose';
     }
     
     return 'pending';
