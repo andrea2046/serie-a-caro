@@ -2087,8 +2087,13 @@ async function _resolveBracketBets(){
       if(bet.status !== 'pending') return;
       if(!bet.schedina || !bet.schedina.length) return;
       // Verifica se almeno una selezione è del tabellone
+      // Accetta anche il vecchio prefisso bacato 'ftab' / 'ftabF_'
       var hasBracket = bet.schedina.some(function(b){
-        return typeof b.matchId==='string' && (b.matchId.indexOf('tab_')===0 || b.matchId.indexOf('tabF_')===0);
+        if(typeof b.matchId !== 'string') return false;
+        var mid = b.matchId;
+        // Normalizza il prefisso 'f' bacato
+        if(mid.indexOf('ftab')===0) mid = mid.substring(1);
+        return mid.indexOf('tab_')===0 || mid.indexOf('tabF_')===0;
       });
       if(!hasBracket) return;
       bracketBetsFound++;
