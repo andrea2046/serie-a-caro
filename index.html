@@ -2023,11 +2023,15 @@ async function _saveBracketMatch(league, matchKey){
 function _resolveBracketBets(){
   var all = getAllData();
   var resolved = 0, winners = 0, paid = 0;
+  var totalBetsScanned = 0, bracketBetsFound = 0, stillPending = 0;
+  var debugList = [];
+  
   Object.entries(all).forEach(function(e){
     var username = e[0], d = e[1];
     if(!d.storia || !d.storia.length) return;
     var changed = false;
     d.storia.forEach(function(bet){
+      totalBetsScanned++;
       if(bet.status !== 'pending') return;
       if(!bet.schedina || !bet.schedina.length) return;
       // Verifica se almeno una selezione è del tabellone
@@ -2035,13 +2039,18 @@ function _resolveBracketBets(){
         return typeof b.matchId==='string' && (b.matchId.indexOf('tab_')===0 || b.matchId.indexOf('tabF_')===0);
       });
       if(!hasBracket) return;
+      bracketBetsFound++;
       
       var allSettled = true, anyLost = false;
+      var selDebug = [];
       bet.schedina.forEach(function(b){
         var res = checkSel(b);
+        selDebug.push(b.matchId+':'+b.label+'='+res);
         if(res === 'pending') allSettled = false;
         if(res === 'lose') anyLost = true;
       });
+      debugList.push('@'+username+' bet#'+bet.id+' → '+selDebug.join(' | '));
+      
       if(anyLost){
         bet.status = 'lose';
         changed = true; resolved++;
@@ -2050,18 +2059,38 @@ function _resolveBracketBets(){
         d.tokens = (d.tokens||0) + (bet.vincita||0);
         paid += bet.vincita||0;
         changed = true; resolved++; winners++;
+      } else {
+        stillPending++;
       }
     });
     if(changed) all[username] = d;
   });
+  
+  console.log('=== RISOLUZIONE SCOMMESSE TABELLONE ===');
+  console.log('Totale scommesse scansionate:', totalBetsScanned);
+  console.log('Scommesse con selezioni tabellone:', bracketBetsFound);
+  console.log('Ancora pendenti:', stillPending);
+  console.log('Risolte:', resolved, '(vinte:', winners, '· token pagati:', paid+')');
+  console.log('Dettaglio:');
+  debugList.forEach(function(s){ console.log('  '+s); });
+  
   if(resolved > 0){
     saveAllData(all);
     if(winners > 0){
       showToast('🏆 '+winners+' scommessa/e pagata/e! ('+paid+' 🪙 distribuiti)');
-    } else if(resolved > 0){
-      showToast('📋 '+resolved+' scommessa/e risolta/e');
+    } else {
+      showToast('📋 '+resolved+' scommessa/e risolta/e (tutte perse)');
     }
+  } else if(bracketBetsFound === 0){
+    showToast('Nessuna scommessa tabellone trovata','err');
+  } else if(stillPending === bracketBetsFound){
+    showToast(bracketBetsFound+' scommesse trovate, tutte ancora in attesa di risultato','err');
+  } else {
+    showToast('Nessuna scommessa da risolvere');
   }
+  
+  // Refresh UI utente corrente
+  try { renderPronostici(); }catch(e){}
 }
 
 async function _resetBracket(){
