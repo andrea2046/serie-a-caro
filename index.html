@@ -3156,210 +3156,140 @@ async function _savePlayerEdit(){
   var newName = document.getElementById('epAdminName').value.trim();
   if(!newName){ showToast('⚠️ Nome non valido','err'); return; }
   var origName = temp.originalName;
-  var nameChanged = newName.toLowerCase() !== origName.toLowerCase();
+  var origLower = origName.trim().toLowerCase();
+  var nameChanged = newName.trim().toLowerCase() !== origLower;
   
-  setSyncStatus('loading','Salvataggio modifiche giocatore...');
+  setSyncStatus('loading','Salvataggio...');
   
   try {
-    // 1. Aggiorna foto (playerImages)
+    // ── 1. FOTO ──
     if(nameChanged){
-      // Sposta la foto sotto il nuovo nome
-      if(temp.photoData){
-        playerImages[newName] = temp.photoData;
-      }
+      if(temp.photoData) playerImages[newName] = temp.photoData;
       if(playerImages[origName]) delete playerImages[origName];
     } else {
-      if(temp.photoData){
-        playerImages[newName] = temp.photoData;
-      } else {
-        delete playerImages[newName];
-      }
+      if(temp.photoData) playerImages[newName] = temp.photoData;
+      else delete playerImages[newName];
     }
-    await _fbRef.child('playerImages').set(playerImages);
     
-    // 2. Aggiorna gol nelle partite dei gironi + cambia nome se serve + rimuovi quelli a 0
-    var changedMatches = [];
-    var changedMatchesF = [];
+    // ── 2. MODIFICA MATCHES GIRONI ──
     matches.forEach(function(m){
       if(!m.played) return;
-      var modified = false;
-      var newScorersA = (m.scorersA||[]).filter(function(s,i){
-        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+      m.scorersA = (m.scorersA||[]).map(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origLower){
           var key = 'gir_M_'+m.id+'_A_'+i;
-          var newGoals = temp.goalsByMatch[key];
-          if(newGoals !== undefined){
-            if(newGoals <= 0){ modified=true; return false; } // remove
-            s.goals = newGoals;
-            if(nameChanged) s.name = newName;
-            modified = true;
-          }
+          var ng = temp.goalsByMatch[key];
+          if(ng !== undefined) s.goals = ng;
+          if(nameChanged) s.name = newName;
         }
-        return true;
-      });
-      var newScorersB = (m.scorersB||[]).filter(function(s,i){
-        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+        return s;
+      }).filter(function(s){ return (s.goals||1) > 0; });
+      m.scorersB = (m.scorersB||[]).map(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origLower){
           var key = 'gir_M_'+m.id+'_B_'+i;
-          var newGoals = temp.goalsByMatch[key];
-          if(newGoals !== undefined){
-            if(newGoals <= 0){ modified=true; return false; }
-            s.goals = newGoals;
-            if(nameChanged) s.name = newName;
-            modified = true;
-          }
+          var ng = temp.goalsByMatch[key];
+          if(ng !== undefined) s.goals = ng;
+          if(nameChanged) s.name = newName;
         }
-        return true;
-      });
-      if(modified){
-        m.scorersA = newScorersA;
-        m.scorersB = newScorersB;
-      }
-      // MVP
-      if(m.mvp && m.mvp.trim().toLowerCase()===origName.toLowerCase()){
+        return s;
+      }).filter(function(s){ return (s.goals||1) > 0; });
+      if(m.mvp && m.mvp.trim().toLowerCase()===origLower){
         var mk = 'mvp_gir_M_'+m.id;
-        if(temp.mvpToRemove[mk]){
-          m.mvp = '';
-          modified = true;
-        } else if(nameChanged){
-          m.mvp = newName;
-          modified = true;
-        }
+        if(temp.mvpToRemove[mk]) m.mvp = '';
+        else if(nameChanged) m.mvp = newName;
       }
-      // Ricalcola gol totali partita
-      if(modified) changedMatches.push(m);
+      // Ricalcola totali gol partita
+      m.g1 = (m.scorersA||[]).reduce(function(s,x){return s+(x.goals||0);},0) || m.g1;
+      m.g2 = (m.scorersB||[]).reduce(function(s,x){return s+(x.goals||0);},0) || m.g2;
     });
+    
     matchesF.forEach(function(m){
       if(!m.played) return;
-      var modified = false;
-      var newScorersA = (m.scorersA||[]).filter(function(s,i){
-        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+      m.scorersA = (m.scorersA||[]).map(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origLower){
           var key = 'gir_F_'+m.id+'_A_'+i;
-          var newGoals = temp.goalsByMatch[key];
-          if(newGoals !== undefined){
-            if(newGoals <= 0){ modified=true; return false; }
-            s.goals = newGoals;
-            if(nameChanged) s.name = newName;
-            modified = true;
-          }
+          var ng = temp.goalsByMatch[key];
+          if(ng !== undefined) s.goals = ng;
+          if(nameChanged) s.name = newName;
         }
-        return true;
-      });
-      var newScorersB = (m.scorersB||[]).filter(function(s,i){
-        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+        return s;
+      }).filter(function(s){ return (s.goals||1) > 0; });
+      m.scorersB = (m.scorersB||[]).map(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origLower){
           var key = 'gir_F_'+m.id+'_B_'+i;
-          var newGoals = temp.goalsByMatch[key];
-          if(newGoals !== undefined){
-            if(newGoals <= 0){ modified=true; return false; }
-            s.goals = newGoals;
-            if(nameChanged) s.name = newName;
-            modified = true;
-          }
+          var ng = temp.goalsByMatch[key];
+          if(ng !== undefined) s.goals = ng;
+          if(nameChanged) s.name = newName;
         }
-        return true;
-      });
-      if(modified){
-        m.scorersA = newScorersA;
-        m.scorersB = newScorersB;
-      }
-      if(m.mvp && m.mvp.trim().toLowerCase()===origName.toLowerCase()){
+        return s;
+      }).filter(function(s){ return (s.goals||1) > 0; });
+      if(m.mvp && m.mvp.trim().toLowerCase()===origLower){
         var mk = 'mvp_gir_F_'+m.id;
-        if(temp.mvpToRemove[mk]){
-          m.mvp = '';
-          modified = true;
-        } else if(nameChanged){
-          m.mvp = newName;
-          modified = true;
-        }
+        if(temp.mvpToRemove[mk]) m.mvp = '';
+        else if(nameChanged) m.mvp = newName;
       }
-      if(modified) changedMatchesF.push(m);
+      m.g1 = (m.scorersA||[]).reduce(function(s,x){return s+(x.goals||0);},0) || m.g1;
+      m.g2 = (m.scorersB||[]).reduce(function(s,x){return s+(x.goals||0);},0) || m.g2;
     });
     
-    if(changedMatches.length>0) await _fbRef.child('matches').set(matches);
-    if(changedMatchesF.length>0) await _fbRef.child('matchesF').set(matchesF);
-    
-    // 3. Aggiorna tabellone
+    // ── 3. MODIFICA TABELLONE ──
     var bData = window._bracketData||{M:{},F:{}};
-    var bracketChanged = false;
     ['M','F'].forEach(function(lg){
       var lgD = bData[lg]||{};
       Object.keys(lgD).forEach(function(k){
         var bm = lgD[k];
         if(!bm) return;
-        var mod = false;
-        var newScorersA = (bm.scorersA||[]).filter(function(s,i){
-          if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+        bm.scorersA = (bm.scorersA||[]).map(function(s,i){
+          if(s.name && s.name.trim().toLowerCase()===origLower){
             var key = 'brk_'+lg+'_'+k+'_A_'+i;
-            var newGoals = temp.goalsByMatch[key];
-            if(newGoals !== undefined){
-              if(newGoals <= 0){ mod=true; return false; }
-              s.goals = newGoals;
-              if(nameChanged) s.name = newName;
-              mod = true;
-            }
+            var ng = temp.goalsByMatch[key];
+            if(ng !== undefined) s.goals = ng;
+            if(nameChanged) s.name = newName;
           }
-          return true;
-        });
-        var newScorersB = (bm.scorersB||[]).filter(function(s,i){
-          if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+          return s;
+        }).filter(function(s){ return (s.goals||1) > 0; });
+        bm.scorersB = (bm.scorersB||[]).map(function(s,i){
+          if(s.name && s.name.trim().toLowerCase()===origLower){
             var key = 'brk_'+lg+'_'+k+'_B_'+i;
-            var newGoals = temp.goalsByMatch[key];
-            if(newGoals !== undefined){
-              if(newGoals <= 0){ mod=true; return false; }
-              s.goals = newGoals;
-              if(nameChanged) s.name = newName;
-              mod = true;
-            }
+            var ng = temp.goalsByMatch[key];
+            if(ng !== undefined) s.goals = ng;
+            if(nameChanged) s.name = newName;
           }
-          return true;
-        });
-        if(mod){
-          bm.scorersA = newScorersA;
-          bm.scorersB = newScorersB;
-          bracketChanged = true;
-        }
-        if(bm.mvp && bm.mvp.trim().toLowerCase()===origName.toLowerCase()){
+          return s;
+        }).filter(function(s){ return (s.goals||1) > 0; });
+        if(bm.mvp && bm.mvp.trim().toLowerCase()===origLower){
           var mk = 'mvp_brk_'+lg+'_'+k;
-          if(temp.mvpToRemove[mk]){
-            bm.mvp = '';
-            bracketChanged = true;
-          } else if(nameChanged){
-            bm.mvp = newName;
-            bracketChanged = true;
-          }
+          if(temp.mvpToRemove[mk]) bm.mvp = '';
+          else if(nameChanged) bm.mvp = newName;
         }
       });
     });
-    if(bracketChanged) await _fbRef.child('bracket').set(bData);
     
-    // 4. Ricalcola classifiche
-    matches.forEach(function(m){
-      if(!m.played) return;
-      var totA = (m.scorersA||[]).reduce(function(s,x){return s+(x.goals||0);},0);
-      var totB = (m.scorersB||[]).reduce(function(s,x){return s+(x.goals||0);},0);
-      if((m.scorersA||[]).length>0) m.g1 = totA;
-      if((m.scorersB||[]).length>0) m.g2 = totB;
-    });
-    matchesF.forEach(function(m){
-      if(!m.played) return;
-      var totA = (m.scorersA||[]).reduce(function(s,x){return s+(x.goals||0);},0);
-      var totB = (m.scorersB||[]).reduce(function(s,x){return s+(x.goals||0);},0);
-      if((m.scorersA||[]).length>0) m.g1 = totA;
-      if((m.scorersB||[]).length>0) m.g2 = totB;
-    });
+    // ── 4. SCRIVI SU FIREBASE tutto assieme ──
+    var updateObj = {
+      playerImages: _fbSafe(playerImages||{}),
+      matches: _fbSafe(matches),
+      matchesF: _fbSafe(matchesF),
+      bracket: _fbSafe(bData)
+    };
+    await _fbRef.update(updateObj);
     
+    // ── 5. Ricalcola UI ──
     rebuildScorers();
     try { _applySchedule(); } catch(e){}
-    renderTable();
+    try { renderTable(); } catch(e){}
     renderScorers();
     
-    setSyncStatus('ok','Modifiche salvate ✓');
-    showToast('✅ Giocatore aggiornato'+(nameChanged?': '+newName:''));
+    setSyncStatus('ok','Salvato ✓');
+    showToast('✅ Giocatore aggiornato'+(nameChanged?' → '+newName:''));
+    
   } catch(e){
     setSyncStatus('err','Errore');
     console.error('Errore salvataggio giocatore:',e);
+    showToast('Errore: '+e.message,'err');
     if(/permission/i.test(e.message||'')){
-      alert('❌ Permission denied su Firebase. Probabilmente le regole non permettono di scrivere su playerImages, matches o bracket. Verifica le regole Firebase.');
-    } else {
-      showToast('Errore: '+e.message,'err');
+      setTimeout(function(){
+        alert('❌ Permission denied su Firebase.\nVerifica che le regole permettano di scrivere su matches, matchesF, bracket e playerImages.');
+      }, 200);
     }
     return;
   }
