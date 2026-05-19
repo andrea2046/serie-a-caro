@@ -1811,6 +1811,7 @@ function renderTabellone(){
   // Admin note compatta
   if(admin){
     h += '<div style="margin-top:16px;padding:10px 14px;background:rgba(245,197,24,0.04);border:1px dashed rgba(245,197,24,0.2);border-radius:10px;text-align:center;font-family:Inter,sans-serif;font-size:10px;color:var(--gold);letter-spacing:0.05em">🔐 Admin · Tocca una partita per inserire risultato e marcatori</div>';
+    h += '<div style="margin-top:8px;text-align:center"><button onclick="_resolveBracketBets()" style="background:rgba(245,197,24,0.1);border:1px solid rgba(245,197,24,0.3);color:var(--gold);padding:8px 16px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.5px">🔄 Risolvi scommesse pendenti</button></div>';
   }
   
   h += '</div>'; // inner wrap
@@ -4056,11 +4057,28 @@ function calcQ(a,b,def,mList){
 }
 // ── SELEZIONE E SCHEDINA ──
 function proSelect(matchId,market,label,odd){
-  var _isF=String(matchId).charAt(0)==='f';
-  var _rid=_isF?parseInt(String(matchId).slice(1)):parseInt(matchId);
-  var _ml=_isF?matchesF:matches;
-  var _m=_ml.find(function(x){return x.id===_rid});
-  var teamA=_m?_m.a:'?', teamB=_m?_m.b:'?';
+  var teamA='?', teamB='?', _isF=false;
+  
+  // Gestisci partite del tabellone (id stringa: tab_qf1 o tabF_qf1)
+  if(typeof matchId === 'string' && (matchId.indexOf('tab_')===0 || matchId.indexOf('tabF_')===0)){
+    _isF = matchId.indexOf('tabF_')===0;
+    var bKey = _isF ? matchId.substring(5) : matchId.substring(4);
+    var bData = window._bracketData || {M:{},F:{}};
+    var bm = (_isF ? bData.F : bData.M)[bKey];
+    if(bm){
+      teamA = bm.a || '?';
+      teamB = bm.b || '?';
+    }
+  } else {
+    // Partite normali dei gironi
+    _isF = String(matchId).charAt(0)==='f';
+    var _rid = _isF ? parseInt(String(matchId).slice(1)) : parseInt(matchId);
+    var _ml = _isF ? matchesF : matches;
+    var _m = _ml.find(function(x){return x.id===_rid});
+    teamA = _m ? _m.a : '?';
+    teamB = _m ? _m.b : '?';
+  }
+  
   var existing=proSchedina.findIndex(function(b){return b.matchId===matchId});
   if(existing>=0 && proSchedina[existing].market===market && proSchedina[existing].label===label){
     proSchedina.splice(existing,1);
@@ -4395,6 +4413,16 @@ function piazzaScommessa(){
   // Controlla che nessun match nella schedina sia bloccato
   for(var _ci=0;_ci<proSchedina.length;_ci++){
     var _cb=proSchedina[_ci];
+    // Match del tabellone
+    if(typeof _cb.matchId === 'string' && (_cb.matchId.indexOf('tab_')===0 || _cb.matchId.indexOf('tabF_')===0)){
+      var _isFB = _cb.matchId.indexOf('tabF_')===0;
+      var _bK = _isFB ? _cb.matchId.substring(5) : _cb.matchId.substring(4);
+      var _bD = window._bracketData || {M:{},F:{}};
+      var _bm = (_isFB?_bD.F:_bD.M)[_bK];
+      if(_bm && _bm.locked){showToast('⛔ '+(_bm.a)+' vs '+(_bm.b)+': scommesse chiuse!','err');return;}
+      continue;
+    }
+    // Match dei gironi
     var _isF=String(_cb.matchId).charAt(0)==='f';
     var _rid=_isF?parseInt(String(_cb.matchId).slice(1)):parseInt(_cb.matchId);
     var _ml=_isF?matchesF:matches;
