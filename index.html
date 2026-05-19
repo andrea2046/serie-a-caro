@@ -2455,6 +2455,11 @@ function renderScorers() {
     
     var nameE = s.name.replace(/'/g,"\\'");
     
+    // Pulsante admin di modifica
+    var adminBtn = admin 
+      ? '<button onclick="event.stopPropagation();_editPlayerAdmin(\''+nameE+'\')" style="background:rgba(245,197,24,0.15);border:1px solid rgba(245,197,24,0.4);color:var(--gold);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:14px;flex-shrink:0;margin-left:4px;display:flex;align-items:center;justify-content:center">✏️</button>'
+      : '<div style="color:var(--muted);font-size:16px;margin-left:6px">›</div>';
+    
     return '<div onclick="showPlayerInfo(\''+nameE+'\')" style="background:linear-gradient(180deg,var(--s2),#141414);border:1px solid var(--border);'+borderColor+';border-radius:16px;padding:12px;margin-bottom:8px;position:relative;overflow:hidden;cursor:pointer;transition:transform .15s">' +
       crown +
       '<div style="display:flex;align-items:center;gap:12px;position:relative;z-index:2">' +
@@ -2467,7 +2472,7 @@ function renderScorers() {
             (mvps ? '<span style="font-size:10px;padding:3px 8px;border-radius:7px;background:rgba(0,214,143,0.12);color:#00d68f;font-weight:600;display:inline-flex;align-items:center;gap:3px">⭐ '+(mvps|0)+' MVP</span>' : '') +
           '</div>' +
         '</div>' +
-        '<div style="color:var(--muted);font-size:16px;margin-left:6px">›</div>' +
+        adminBtn +
       '</div>' +
     '</div>';
   }).join('');
@@ -2903,6 +2908,466 @@ function _renderMatchRow(m, focusTeam){
 }
 
 // Popup INFO GIOCATORE: partite in cui ha segnato
+// ════════════════════════════════════════
+// EDIT GIOCATORE ADMIN: modifica nome, gol, MVP, foto
+// ════════════════════════════════════════
+
+function _editPlayerAdmin(playerName){
+  if(!admin) return;
+  var target = playerName.trim().toLowerCase();
+  
+  // Trova tutte le partite dove ha segnato (gironi + tabellone)
+  var foundInGironi = []; // {league:'M'/'F', matchId, side:'A'/'B', currentName, currentGoals}
+  var foundInBracket = []; // {league:'M'/'F', key:'qf1', side:'A'/'B', currentName, currentGoals}
+  var mvpInGironi = []; // {league, matchId}
+  var mvpInBracket = []; // {league, key}
+  
+  matches.forEach(function(m){
+    if(!m.played) return;
+    (m.scorersA||[]).forEach(function(s,i){
+      if(s.name && s.name.trim().toLowerCase()===target){
+        foundInGironi.push({league:'M', matchId:m.id, side:'A', idx:i, currentName:s.name, currentGoals:s.goals||1, oppName:m.b, teamName:m.a});
+      }
+    });
+    (m.scorersB||[]).forEach(function(s,i){
+      if(s.name && s.name.trim().toLowerCase()===target){
+        foundInGironi.push({league:'M', matchId:m.id, side:'B', idx:i, currentName:s.name, currentGoals:s.goals||1, oppName:m.a, teamName:m.b});
+      }
+    });
+    if(m.mvp && m.mvp.trim().toLowerCase()===target){
+      mvpInGironi.push({league:'M', matchId:m.id, a:m.a, b:m.b});
+    }
+  });
+  matchesF.forEach(function(m){
+    if(!m.played) return;
+    (m.scorersA||[]).forEach(function(s,i){
+      if(s.name && s.name.trim().toLowerCase()===target){
+        foundInGironi.push({league:'F', matchId:m.id, side:'A', idx:i, currentName:s.name, currentGoals:s.goals||1, oppName:m.b, teamName:m.a});
+      }
+    });
+    (m.scorersB||[]).forEach(function(s,i){
+      if(s.name && s.name.trim().toLowerCase()===target){
+        foundInGironi.push({league:'F', matchId:m.id, side:'B', idx:i, currentName:s.name, currentGoals:s.goals||1, oppName:m.a, teamName:m.b});
+      }
+    });
+    if(m.mvp && m.mvp.trim().toLowerCase()===target){
+      mvpInGironi.push({league:'F', matchId:m.id, a:m.a, b:m.b});
+    }
+  });
+  // Tabellone
+  var bData = window._bracketData||{M:{},F:{}};
+  ['M','F'].forEach(function(lg){
+    var lgD = bData[lg]||{};
+    Object.keys(lgD).forEach(function(k){
+      var bm = lgD[k];
+      if(!bm) return;
+      (bm.scorersA||[]).forEach(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===target){
+          foundInBracket.push({league:lg, key:k, side:'A', idx:i, currentName:s.name, currentGoals:s.goals||1, teamName:bm.a, oppName:bm.b});
+        }
+      });
+      (bm.scorersB||[]).forEach(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===target){
+          foundInBracket.push({league:lg, key:k, side:'B', idx:i, currentName:s.name, currentGoals:s.goals||1, teamName:bm.b, oppName:bm.a});
+        }
+      });
+      if(bm.mvp && bm.mvp.trim().toLowerCase()===target){
+        mvpInBracket.push({league:lg, key:k, a:bm.a, b:bm.b});
+      }
+    });
+  });
+  
+  var totalGoals = foundInGironi.reduce(function(s,f){return s+f.currentGoals;},0) + foundInBracket.reduce(function(s,f){return s+f.currentGoals;},0);
+  var totalMvp = mvpInGironi.length + mvpInBracket.length;
+  
+  // Foto attuale
+  var currentPhoto = playerImages[playerName] || '';
+  
+  // Crea popup
+  var existing = document.getElementById('editPlayerPopup');
+  if(existing) existing.remove();
+  
+  var div = document.createElement('div');
+  div.id = 'editPlayerPopup';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto';
+  
+  // Stato temp
+  window._editPlayerTemp = {
+    originalName: playerName,
+    newName: playerName,
+    photoData: currentPhoto,
+    goalsByMatch: {}, // chiave: "M_id_A_idx" o "B_qf1_A_idx" → newGoals
+    mvpToRemove: {} // chiave matchId → true se si vuole rimuovere
+  };
+  // Init goals
+  foundInGironi.forEach(function(f, i){
+    window._editPlayerTemp.goalsByMatch['gir_'+f.league+'_'+f.matchId+'_'+f.side+'_'+f.idx] = f.currentGoals;
+  });
+  foundInBracket.forEach(function(f, i){
+    window._editPlayerTemp.goalsByMatch['brk_'+f.league+'_'+f.key+'_'+f.side+'_'+f.idx] = f.currentGoals;
+  });
+  
+  var h = '<div style="background:var(--s2);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;margin:14px 0">';
+  
+  // Header
+  h += '<div style="text-align:center;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">';
+  h += '<div style="font-size:11px;color:var(--gold);font-weight:700;letter-spacing:0.2em;margin-bottom:6px">🔐 ADMIN · MODIFICA GIOCATORE</div>';
+  h += '<div style="font-family:Manrope,Inter,sans-serif;font-size:20px;font-weight:800;color:var(--text);line-height:1">'+_esc(playerName)+'</div>';
+  h += '<div style="font-size:11px;color:var(--muted);margin-top:4px">⚽ '+totalGoals+' gol · ⭐ '+totalMvp+' MVP · '+(foundInGironi.length+foundInBracket.length)+' partite</div>';
+  h += '</div>';
+  
+  // ── NOME ──
+  h += '<div style="margin-bottom:14px">';
+  h += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1.5px;margin-bottom:6px">NOME GIOCATORE</div>';
+  h += '<input id="epAdminName" type="text" value="'+_esc(playerName)+'" style="width:100%;background:#0a0a0a;border:1px solid var(--border);color:#fff;padding:10px 12px;border-radius:10px;font-size:14px;font-family:Inter,sans-serif;outline:none">';
+  h += '<div style="font-size:9px;color:var(--muted);margin-top:4px;font-style:italic">Cambiare il nome lo aggiornerà in tutte le partite/MVP</div>';
+  h += '</div>';
+  
+  // ── FOTO ──
+  h += '<div style="margin-bottom:14px">';
+  h += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1.5px;margin-bottom:6px">📸 FOTO PROFILO</div>';
+  h += '<div id="epAdminPhotoPreview" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,rgba(245,197,24,0.2),rgba(245,197,24,0.05));border:2px solid rgba(245,197,24,0.3);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;overflow:hidden;color:var(--gold);font-family:Inter,sans-serif;font-size:18px;font-weight:800">';
+  if(currentPhoto){
+    h += '<img src="'+_esc(currentPhoto)+'" style="width:100%;height:100%;object-fit:cover" alt="">';
+  } else {
+    h += _esc(playerName.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2));
+  }
+  h += '</div>';
+  h += '<input type="file" id="epAdminPhotoFile" accept="image/*" style="display:none" onchange="_editPlayerHandlePhoto(event)">';
+  h += '<div style="display:flex;gap:6px;justify-content:center">';
+  h += '<button onclick="document.getElementById(\'epAdminPhotoFile\').click()" style="background:rgba(245,197,24,0.1);border:1px solid rgba(245,197,24,0.3);color:var(--gold);padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">📷 Carica foto</button>';
+  if(currentPhoto){
+    h += '<button onclick="_editPlayerRemovePhoto()" style="background:rgba(255,68,84,0.1);border:1px solid rgba(255,68,84,0.3);color:var(--red);padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🗑️ Rimuovi</button>';
+  }
+  h += '</div>';
+  h += '</div>';
+  
+  // ── GOL NELLE PARTITE ──
+  if(foundInGironi.length>0 || foundInBracket.length>0){
+    h += '<div style="margin-bottom:14px">';
+    h += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1.5px;margin-bottom:6px">⚽ GOL FATTI</div>';
+    h += '<div style="font-size:9px;color:var(--muted);margin-bottom:8px;font-style:italic">Modifica i gol per ogni partita (metti 0 per rimuovere)</div>';
+    
+    foundInGironi.forEach(function(f){
+      var key = 'gir_'+f.league+'_'+f.matchId+'_'+f.side+'_'+f.idx;
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:8px 10px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px">';
+      h += '<div style="flex:1;min-width:0">';
+      h += '<div style="font-size:11px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(f.teamName)+' <span style="color:var(--muted)">vs</span> '+_esc(f.oppName)+'</div>';
+      h += '<div style="font-size:9px;color:var(--muted);margin-top:2px">Girone '+(f.league==='F'?'femminile':'maschile')+'</div>';
+      h += '</div>';
+      h += '<input type="number" min="0" value="'+f.currentGoals+'" data-key="'+key+'" onchange="window._editPlayerTemp.goalsByMatch[this.getAttribute(\'data-key\')]=parseInt(this.value)||0" style="width:50px;background:#0a0a0a;border:1px solid var(--border);color:var(--gold);padding:6px 0;border-radius:6px;font-size:14px;font-family:Manrope,sans-serif;font-weight:700;text-align:center;outline:none">';
+      h += '</div>';
+    });
+    
+    foundInBracket.forEach(function(f){
+      var key = 'brk_'+f.league+'_'+f.key+'_'+f.side+'_'+f.idx;
+      var stageLabels = {qf1:'QF1',qf2:'QF2',qf3:'QF3',qf4:'QF4',sf1:'SF1',sf2:'SF2',final:'FINALE'};
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:8px 10px;background:rgba(245,197,24,0.05);border:1px solid rgba(245,197,24,0.2);border-radius:8px">';
+      h += '<div style="flex:1;min-width:0">';
+      h += '<div style="font-size:11px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(f.teamName)+' <span style="color:var(--muted)">vs</span> '+_esc(f.oppName)+'</div>';
+      h += '<div style="font-size:9px;color:var(--gold);margin-top:2px">🏆 '+(stageLabels[f.key]||f.key)+' '+(f.league==='F'?'femminile':'maschile')+'</div>';
+      h += '</div>';
+      h += '<input type="number" min="0" value="'+f.currentGoals+'" data-key="'+key+'" onchange="window._editPlayerTemp.goalsByMatch[this.getAttribute(\'data-key\')]=parseInt(this.value)||0" style="width:50px;background:#0a0a0a;border:1px solid rgba(245,197,24,0.3);color:var(--gold);padding:6px 0;border-radius:6px;font-size:14px;font-family:Manrope,sans-serif;font-weight:700;text-align:center;outline:none">';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+  
+  // ── MVP ──
+  if(mvpInGironi.length>0 || mvpInBracket.length>0){
+    h += '<div style="margin-bottom:14px">';
+    h += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1.5px;margin-bottom:6px">⭐ MVP IN</div>';
+    mvpInGironi.forEach(function(f){
+      var k = 'mvp_gir_'+f.league+'_'+f.matchId;
+      h += '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(0,214,143,0.05);border:1px solid rgba(0,214,143,0.2);border-radius:8px;margin-bottom:6px;cursor:pointer">';
+      h += '<input type="checkbox" checked data-key="'+k+'" onchange="window._editPlayerTemp.mvpToRemove[this.getAttribute(\'data-key\')]=!this.checked">';
+      h += '<div style="flex:1;font-size:11px;color:var(--text);font-weight:600">'+_esc(f.a)+' vs '+_esc(f.b)+'<div style="font-size:9px;color:var(--muted);margin-top:2px">Girone '+(f.league==='F'?'femminile':'maschile')+'</div></div>';
+      h += '</label>';
+    });
+    mvpInBracket.forEach(function(f){
+      var k = 'mvp_brk_'+f.league+'_'+f.key;
+      var stageLabels = {qf1:'QF1',qf2:'QF2',qf3:'QF3',qf4:'QF4',sf1:'SF1',sf2:'SF2',final:'FINALE'};
+      h += '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(0,214,143,0.05);border:1px solid rgba(0,214,143,0.2);border-radius:8px;margin-bottom:6px;cursor:pointer">';
+      h += '<input type="checkbox" checked data-key="'+k+'" onchange="window._editPlayerTemp.mvpToRemove[this.getAttribute(\'data-key\')]=!this.checked">';
+      h += '<div style="flex:1;font-size:11px;color:var(--text);font-weight:600">'+_esc(f.a)+' vs '+_esc(f.b)+'<div style="font-size:9px;color:var(--gold);margin-top:2px">🏆 '+(stageLabels[f.key]||f.key)+' '+(f.league==='F'?'femminile':'maschile')+'</div></div>';
+      h += '</label>';
+    });
+    h += '<div style="font-size:9px;color:var(--muted);margin-top:4px;font-style:italic">Deseleziona per togliere lo status MVP da quella partita</div>';
+    h += '</div>';
+  }
+  
+  // Pulsanti
+  h += '<div style="display:flex;gap:8px;margin-top:18px">';
+  h += '<button onclick="_savePlayerEdit()" style="flex:1;padding:12px;background:var(--gold);color:#000;border:none;border-radius:10px;font-family:Inter,sans-serif;font-size:13px;letter-spacing:0.1em;cursor:pointer;font-weight:700;text-transform:uppercase">💾 Salva</button>';
+  h += '<button onclick="document.getElementById(\'editPlayerPopup\').remove()" style="padding:12px 16px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;font-size:13px;cursor:pointer">Annulla</button>';
+  h += '</div>';
+  
+  h += '</div>';
+  div.innerHTML = h;
+  document.body.appendChild(div);
+}
+
+function _editPlayerHandlePhoto(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  if(file.size > 500*1024){
+    showToast('⚠️ Foto troppo grande (max 500KB)','err');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    // Comprimi resize a 200x200
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement('canvas');
+      var size = 200;
+      canvas.width = size; canvas.height = size;
+      var ctx = canvas.getContext('2d');
+      // Crop quadrato centrato
+      var sourceSize = Math.min(img.width, img.height);
+      var sx = (img.width - sourceSize)/2;
+      var sy = (img.height - sourceSize)/2;
+      ctx.drawImage(img, sx, sy, sourceSize, sourceSize, 0, 0, size, size);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      window._editPlayerTemp.photoData = dataUrl;
+      // Aggiorna preview
+      var prev = document.getElementById('epAdminPhotoPreview');
+      if(prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover" alt="">';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function _editPlayerRemovePhoto(){
+  window._editPlayerTemp.photoData = '';
+  var prev = document.getElementById('epAdminPhotoPreview');
+  if(prev){
+    var name = window._editPlayerTemp.newName || window._editPlayerTemp.originalName;
+    prev.innerHTML = _esc(name.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,2));
+  }
+}
+
+async function _savePlayerEdit(){
+  if(!admin) return;
+  var temp = window._editPlayerTemp;
+  if(!temp) return;
+  
+  var newName = document.getElementById('epAdminName').value.trim();
+  if(!newName){ showToast('⚠️ Nome non valido','err'); return; }
+  var origName = temp.originalName;
+  var nameChanged = newName.toLowerCase() !== origName.toLowerCase();
+  
+  setSyncStatus('loading','Salvataggio modifiche giocatore...');
+  
+  try {
+    // 1. Aggiorna foto (playerImages)
+    if(nameChanged){
+      // Sposta la foto sotto il nuovo nome
+      if(temp.photoData){
+        playerImages[newName] = temp.photoData;
+      }
+      if(playerImages[origName]) delete playerImages[origName];
+    } else {
+      if(temp.photoData){
+        playerImages[newName] = temp.photoData;
+      } else {
+        delete playerImages[newName];
+      }
+    }
+    await _fbRef.child('playerImages').set(playerImages);
+    
+    // 2. Aggiorna gol nelle partite dei gironi + cambia nome se serve + rimuovi quelli a 0
+    var changedMatches = [];
+    var changedMatchesF = [];
+    matches.forEach(function(m){
+      if(!m.played) return;
+      var modified = false;
+      var newScorersA = (m.scorersA||[]).filter(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+          var key = 'gir_M_'+m.id+'_A_'+i;
+          var newGoals = temp.goalsByMatch[key];
+          if(newGoals !== undefined){
+            if(newGoals <= 0){ modified=true; return false; } // remove
+            s.goals = newGoals;
+            if(nameChanged) s.name = newName;
+            modified = true;
+          }
+        }
+        return true;
+      });
+      var newScorersB = (m.scorersB||[]).filter(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+          var key = 'gir_M_'+m.id+'_B_'+i;
+          var newGoals = temp.goalsByMatch[key];
+          if(newGoals !== undefined){
+            if(newGoals <= 0){ modified=true; return false; }
+            s.goals = newGoals;
+            if(nameChanged) s.name = newName;
+            modified = true;
+          }
+        }
+        return true;
+      });
+      if(modified){
+        m.scorersA = newScorersA;
+        m.scorersB = newScorersB;
+      }
+      // MVP
+      if(m.mvp && m.mvp.trim().toLowerCase()===origName.toLowerCase()){
+        var mk = 'mvp_gir_M_'+m.id;
+        if(temp.mvpToRemove[mk]){
+          m.mvp = '';
+          modified = true;
+        } else if(nameChanged){
+          m.mvp = newName;
+          modified = true;
+        }
+      }
+      // Ricalcola gol totali partita
+      if(modified) changedMatches.push(m);
+    });
+    matchesF.forEach(function(m){
+      if(!m.played) return;
+      var modified = false;
+      var newScorersA = (m.scorersA||[]).filter(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+          var key = 'gir_F_'+m.id+'_A_'+i;
+          var newGoals = temp.goalsByMatch[key];
+          if(newGoals !== undefined){
+            if(newGoals <= 0){ modified=true; return false; }
+            s.goals = newGoals;
+            if(nameChanged) s.name = newName;
+            modified = true;
+          }
+        }
+        return true;
+      });
+      var newScorersB = (m.scorersB||[]).filter(function(s,i){
+        if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+          var key = 'gir_F_'+m.id+'_B_'+i;
+          var newGoals = temp.goalsByMatch[key];
+          if(newGoals !== undefined){
+            if(newGoals <= 0){ modified=true; return false; }
+            s.goals = newGoals;
+            if(nameChanged) s.name = newName;
+            modified = true;
+          }
+        }
+        return true;
+      });
+      if(modified){
+        m.scorersA = newScorersA;
+        m.scorersB = newScorersB;
+      }
+      if(m.mvp && m.mvp.trim().toLowerCase()===origName.toLowerCase()){
+        var mk = 'mvp_gir_F_'+m.id;
+        if(temp.mvpToRemove[mk]){
+          m.mvp = '';
+          modified = true;
+        } else if(nameChanged){
+          m.mvp = newName;
+          modified = true;
+        }
+      }
+      if(modified) changedMatchesF.push(m);
+    });
+    
+    if(changedMatches.length>0) await _fbRef.child('matches').set(matches);
+    if(changedMatchesF.length>0) await _fbRef.child('matchesF').set(matchesF);
+    
+    // 3. Aggiorna tabellone
+    var bData = window._bracketData||{M:{},F:{}};
+    var bracketChanged = false;
+    ['M','F'].forEach(function(lg){
+      var lgD = bData[lg]||{};
+      Object.keys(lgD).forEach(function(k){
+        var bm = lgD[k];
+        if(!bm) return;
+        var mod = false;
+        var newScorersA = (bm.scorersA||[]).filter(function(s,i){
+          if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+            var key = 'brk_'+lg+'_'+k+'_A_'+i;
+            var newGoals = temp.goalsByMatch[key];
+            if(newGoals !== undefined){
+              if(newGoals <= 0){ mod=true; return false; }
+              s.goals = newGoals;
+              if(nameChanged) s.name = newName;
+              mod = true;
+            }
+          }
+          return true;
+        });
+        var newScorersB = (bm.scorersB||[]).filter(function(s,i){
+          if(s.name && s.name.trim().toLowerCase()===origName.toLowerCase()){
+            var key = 'brk_'+lg+'_'+k+'_B_'+i;
+            var newGoals = temp.goalsByMatch[key];
+            if(newGoals !== undefined){
+              if(newGoals <= 0){ mod=true; return false; }
+              s.goals = newGoals;
+              if(nameChanged) s.name = newName;
+              mod = true;
+            }
+          }
+          return true;
+        });
+        if(mod){
+          bm.scorersA = newScorersA;
+          bm.scorersB = newScorersB;
+          bracketChanged = true;
+        }
+        if(bm.mvp && bm.mvp.trim().toLowerCase()===origName.toLowerCase()){
+          var mk = 'mvp_brk_'+lg+'_'+k;
+          if(temp.mvpToRemove[mk]){
+            bm.mvp = '';
+            bracketChanged = true;
+          } else if(nameChanged){
+            bm.mvp = newName;
+            bracketChanged = true;
+          }
+        }
+      });
+    });
+    if(bracketChanged) await _fbRef.child('bracket').set(bData);
+    
+    // 4. Ricalcola classifiche
+    matches.forEach(function(m){
+      if(!m.played) return;
+      var totA = (m.scorersA||[]).reduce(function(s,x){return s+(x.goals||0);},0);
+      var totB = (m.scorersB||[]).reduce(function(s,x){return s+(x.goals||0);},0);
+      if((m.scorersA||[]).length>0) m.g1 = totA;
+      if((m.scorersB||[]).length>0) m.g2 = totB;
+    });
+    matchesF.forEach(function(m){
+      if(!m.played) return;
+      var totA = (m.scorersA||[]).reduce(function(s,x){return s+(x.goals||0);},0);
+      var totB = (m.scorersB||[]).reduce(function(s,x){return s+(x.goals||0);},0);
+      if((m.scorersA||[]).length>0) m.g1 = totA;
+      if((m.scorersB||[]).length>0) m.g2 = totB;
+    });
+    
+    rebuildScorers();
+    try { _applySchedule(); } catch(e){}
+    renderTable();
+    renderScorers();
+    
+    setSyncStatus('ok','Modifiche salvate ✓');
+    showToast('✅ Giocatore aggiornato'+(nameChanged?': '+newName:''));
+  } catch(e){
+    setSyncStatus('err','Errore');
+    console.error('Errore salvataggio giocatore:',e);
+    if(/permission/i.test(e.message||'')){
+      alert('❌ Permission denied su Firebase. Probabilmente le regole non permettono di scrivere su playerImages, matches o bracket. Verifica le regole Firebase.');
+    } else {
+      showToast('Errore: '+e.message,'err');
+    }
+    return;
+  }
+  
+  document.getElementById('editPlayerPopup').remove();
+}
+
+
 function showPlayerInfo(playerName){
   if(!playerName) return;
   var target = playerName.trim().toLowerCase();
