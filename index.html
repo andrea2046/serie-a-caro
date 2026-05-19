@@ -2026,6 +2026,27 @@ function _resolveBracketBets(){
   var totalBetsScanned = 0, bracketBetsFound = 0, stillPending = 0;
   var debugList = [];
   
+  // Log: verifica utenti presenti
+  var userKeys = Object.keys(all);
+  console.log('=== UTENTI PRESENTI IN proData ===');
+  console.log('Totale utenti:', userKeys.length);
+  console.log('Lista username:', userKeys.sort().join(', '));
+  if(userKeys.indexOf('luckyboy')>=0){
+    console.log('✅ luckyboy ESISTE');
+    var lk = all['luckyboy'];
+    console.log('  - tokens:', lk.tokens);
+    console.log('  - bets totali:', (lk.storia||[]).length);
+    console.log('  - bets pending:', (lk.storia||[]).filter(function(b){return b.status==='pending'}).length);
+    console.log('  - bets dettaglio:');
+    (lk.storia||[]).forEach(function(bet){
+      var sel = (bet.schedina||[]).map(function(s){return s.matchId+':'+s.label}).join(' | ');
+      console.log('    bet#'+bet.id+' status='+bet.status+' selezioni='+sel);
+    });
+  } else {
+    console.log('❌ luckyboy NON ESISTE in proData');
+  }
+  console.log('=================================');
+  
   // Log dello stato del bracket
   var bData = window._bracketData || {M:{},F:{}};
   console.log('=== STATO TABELLONE ATTUALE ===');
