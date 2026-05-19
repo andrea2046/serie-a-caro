@@ -5028,7 +5028,6 @@ function _modifyUserTokens(idx){
     newTokens=current+delta;
   }
   if(newTokens<0) newTokens=0;
-  if(newTokens>100000){showToast('Max 100000 token','err');return;}
   if(!confirm('Conferma:\n@'+uname+'\nDa '+current+' a '+newTokens+' token')) return;
   all[uname].tokens=newTokens;
   localStorage.setItem('sac_pro_data',JSON.stringify(all));
