@@ -2026,6 +2026,19 @@ function _resolveBracketBets(){
   var totalBetsScanned = 0, bracketBetsFound = 0, stillPending = 0;
   var debugList = [];
   
+  // Log dello stato del bracket
+  var bData = window._bracketData || {M:{},F:{}};
+  console.log('=== STATO TABELLONE ATTUALE ===');
+  ['M','F'].forEach(function(lg){
+    var lgD = bData[lg]||{};
+    Object.keys(lgD).forEach(function(k){
+      var bm = lgD[k];
+      if(bm){
+        console.log(lg+'/'+k+': a="'+bm.a+'" b="'+bm.b+'" ga='+JSON.stringify(bm.ga)+' (type:'+typeof bm.ga+') gb='+JSON.stringify(bm.gb)+' (type:'+typeof bm.gb+') locked='+!!bm.locked+' scorers='+((bm.scorersA||[]).length+(bm.scorersB||[]).length));
+      }
+    });
+  });
+  
   Object.entries(all).forEach(function(e){
     var username = e[0], d = e[1];
     if(!d.storia || !d.storia.length) return;
