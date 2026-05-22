@@ -408,7 +408,7 @@ select option{background:var(--s2)}
   <div class="header-btns">
     <button class="pro-admin-icon" id="proAdminHeaderBtn" onclick="openProAdmin()" title="Admin pronostici">⚙️</button>
     <button class="btn btn-gold" onclick="openLogin()" id="loginBtn">Admin</button>
-    <button class="btn" onclick="openShopPopup()" id="shopBtn" style="background:rgba(245,197,24,0.1);color:var(--gold);border:1px solid rgba(245,197,24,0.3);font-size:12px;padding:6px 12px;font-weight:600" title="Negozio maglie">🎽 Shop</button>
+    <button class="btn" onclick="changePage('shop',document.getElementById('navShop'))" id="shopBtn" style="background:rgba(245,197,24,0.1);color:var(--gold);border:1px solid rgba(245,197,24,0.3);font-size:12px;padding:6px 12px;font-weight:600">🎽 Shop</button>
     <button class="btn btn-ghost" onclick="_exportMatches()" id="backupMatchBtn" style="display:none;background:rgba(0,214,143,0.12);color:#00d68f;border:1px solid rgba(0,214,143,0.3)" title="Backup partite e risultati">💾</button>
     <button class="btn btn-ghost" onclick="_triggerImportMatches()" id="restoreMatchBtn" style="display:none;background:rgba(61,142,240,0.12);color:#3d8ef0;border:1px solid rgba(61,142,240,0.3)" title="Ripristina backup partite">📂</button>
     <button class="btn btn-ghost" onclick="logout()" id="logoutBtn" style="display:none">Esci</button>
@@ -428,6 +428,7 @@ select option{background:var(--s2)}
   <button class="nav-btn" id="navOggi" onclick="changePage('oggi',this)">Oggi</button>
   <button class="nav-btn" id="navMarcatori" onclick="changePage('marcatori',this)">Marcatori</button>
   <button class="nav-btn" id="navPronostici" onclick="changePage('pronostici',this)">BETS</button>
+  <button class="nav-btn" id="navShop" onclick="changePage('shop',this)" style="display:none"></button>
 </nav>
 <div id="classifica" class="container active"><div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Caricamento...</div></div></div>
 <div id="risultati" class="container" style="display:none"></div>
@@ -436,6 +437,7 @@ select option{background:var(--s2)}
 <div id="oggi" class="container"></div>
 <div id="notizie" class="container" style="display:none"></div>
 <div id="pronostici" class="container"></div>
+<div id="shop" class="container"></div>
 <div id="matchView" class="container"></div>
 <div class="popup" id="pollPopup"><div class="popup-sheet" id="pollSheet"><div class="sheet-handle"></div></div></div>
 <div class="popup" id="loginPopup">
@@ -1023,6 +1025,7 @@ function changePage(p, btn) {
   }
   if (p==='oggi') renderOggi();
   if (p==='tabellone') renderTabellone();
+  if (p==='shop') renderShop();
   if (p==='pronostici') {
     renderPronostici();
     var now=Date.now();
@@ -3573,7 +3576,7 @@ async function initApp() {
     await new Promise(r=>setTimeout(r,400))
   } catch(e) { setStatus('Modalità offline') }
   finally { clearTimeout(safety); hideSplash() }
-  try { _updateShopBtnVisibility(); } catch(e){}
+  try { } catch(e){}
 }
 
 document.getElementById('headerLogo').src = document.getElementById('splashLogo').src
@@ -3738,29 +3741,26 @@ function _closeShopPopup(){
 }
 
 // Overlay standard. headerExtra = html opzionale a destra del titolo (es. carrello)
-function _shopOverlay(innerHtml, headerExtra){
-  _closeShopPopup();
-  var div = document.createElement('div');
-  div.id = 'shopPopup';
-  div.onclick = function(e){ if(e.target===div) _closeShopPopup(); };
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(2,4,8,0.92);z-index:99998;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:popupFadeIn 0.25s ease-out;backdrop-filter:blur(3px)';
-  var h = '<style>@media(min-width:600px){#shopPopup{align-items:center!important}#shopCard{border-radius:18px!important;margin:0!important}}</style>';
-  h += '<div id="shopCard" style="background:var(--s1);border:1px solid var(--border);border-radius:18px 18px 0 0;width:100%;max-width:460px;max-height:92vh;overflow-y:auto;animation:popupSlideUp 0.3s cubic-bezier(0.16,1,0.3,1);position:relative">';
-  h += '<div style="position:sticky;top:0;background:var(--s1);padding:14px 16px 12px;z-index:5;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">';
-  h += '<div style="font-family:Inter,sans-serif;font-size:11px;font-weight:600;color:var(--text);letter-spacing:2.5px">SERIE A CARO</div>';
-  h += '<div style="display:flex;align-items:center;gap:10px">'+(headerExtra||'')+'<button onclick="_closeShopPopup()" style="background:transparent;border:none;color:var(--muted);width:26px;height:26px;font-size:20px;cursor:pointer;line-height:1;padding:0">×</button></div>';
-  h += '</div>';
-  h += '<div style="padding:18px 16px 22px">'+innerHtml+'</div>';
-  h += '</div>';
-  div.innerHTML = h;
-  document.body.appendChild(div);
+// Scrive il contenuto nella tab shop (sostituisce il vecchio sistema overlay)
+function _renderShopPage(innerHtml, showCartBtn){
+  var el = document.getElementById('shop');
+  if(!el) return;
+  var n = cartCount();
+  var cartBadge = n>0 ? '<span style="position:absolute;top:-5px;right:-5px;background:var(--gold);color:#000;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px">'+n+'</span>' : '';
+  var cartBtn = showCartBtn ? '<button onclick="_shopShowCart()" style="position:relative;background:transparent;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:0;line-height:1">🛒'+cartBadge+'</button>' : '';
+  el.innerHTML =
+    '<div style="max-width:480px;margin:0 auto;padding:0 0 32px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:18px 16px 14px;border-bottom:1px solid var(--border)">' +
+        '<div style="font-size:11px;font-weight:600;color:var(--text);letter-spacing:2.5px">SERIE A CARO</div>' +
+        cartBtn +
+      '</div>' +
+      '<div style="padding:18px 16px">'+innerHtml+'</div>' +
+    '</div>';
+  el.scrollTop = 0;
 }
 
-// Bottoncino carrello per l'header del popup
-function _cartBtnHtml(){
-  var n = cartCount();
-  var badge = n>0 ? '<span style="position:absolute;top:-6px;right:-6px;background:var(--gold);color:#000;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px">'+n+'</span>' : '';
-  return '<button onclick="_shopShowCart()" style="position:relative;background:transparent;border:none;color:var(--text);width:26px;height:26px;font-size:17px;cursor:pointer;padding:0;line-height:1">🛒'+badge+'</button>';
+function renderShop(){
+  _shopShowCatalog();
 }
 
 // ── CAROSELLO immagini ──
@@ -3802,9 +3802,9 @@ function _shopCarouScroll(cid, total){
   if(lbl) lbl.textContent = (idx===0) ? 'RETRO' : 'FRONTE';
 }
 
-// ════════ ENTRY POINT ════════
+// openShopPopup non più usato ma mantenuto per retrocompatibilità
 function openShopPopup(){
-  _shopShowCatalog();
+  changePage('shop', document.getElementById('navShop'));
 }
 
 // ── SCHERMATA: VETRINA (catalogo, maglie cliccabili) ──
@@ -3841,7 +3841,7 @@ function _shopShowCatalog(){
     h += '</div>';
   });
   
-  _shopOverlay(h, _cartBtnHtml());
+  _renderShopPage(h, true);
 }
 
 // ── SCHERMATA: DETTAGLIO MAGLIA (taglie + quantità + aggiungi al carrello) ──
@@ -3892,7 +3892,7 @@ function _shopShowDetail(prodId){
   // AGGIUNGI AL CARRELLO
   h += '<button onclick="_shopAddToCart()" style="width:100%;margin-top:22px;padding:14px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-family:Inter,sans-serif;font-size:12px;font-weight:600;letter-spacing:0.8px;cursor:pointer;text-transform:uppercase">Aggiungi al carrello</button>';
   
-  _shopOverlay(h, _cartBtnHtml());
+  _renderShopPage(h, true);
 }
 
 function _shopDetailSelectSize(sz){
@@ -3968,7 +3968,7 @@ function _shopShowCart(){
     h += '<div style="font-size:12px">Il carrello è vuoto</div>';
     h += '</div>';
     h += '<button onclick="_shopShowCatalog()" style="width:100%;padding:14px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:0.8px">Scegli una maglia</button>';
-    _shopOverlay(h, _cartBtnHtml());
+    _renderShopPage(h, true);
     return;
   }
   
@@ -4019,7 +4019,7 @@ function _shopShowCart(){
     h += '<button onclick="_shopGoogleLogin()" style="width:100%;padding:14px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-size:12px;font-weight:600;letter-spacing:0.8px;cursor:pointer;text-transform:uppercase">Accedi e ordina</button>';
   }
   
-  _shopOverlay(h, _cartBtnHtml());
+  _renderShopPage(h, true);
 }
 
 function _cartQtyChange(idx, delta){
@@ -4109,7 +4109,7 @@ function _shopShowProfileForm(sess){
   h += '<button onclick="_shopSaveProfile()" style="width:100%;padding:14px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-size:12px;font-weight:600;letter-spacing:0.8px;cursor:pointer;text-transform:uppercase">Continua</button>';
   h += '<button onclick="_shopLogout()" style="width:100%;padding:11px;background:transparent;border:none;color:var(--muted);font-size:11px;cursor:pointer;margin-top:4px">Esci dall\'account</button>';
   
-  _shopOverlay(h);
+  _renderShopPage(h, false);
 }
 
 async function _shopSaveProfile(){
@@ -4249,7 +4249,7 @@ function _shopShowOrderStatus(order){
   }
   h += '<button onclick="_shopLogout()" style="width:100%;padding:11px;background:transparent;border:none;color:var(--muted);font-size:11px;cursor:pointer;margin-top:4px">Esci dall\'account</button>';
   
-  _shopOverlay(h);
+  _renderShopPage(h, false);
 }
 
 async function _cancelShopOrder(){
